@@ -55,7 +55,7 @@ index 946301ea..ed0f1921 100644
  # for legacy images only build linux/amd64
  ifeq ($(TYPE), legacy)
 diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/Dockerfile
-index f73de9c8..70f65eb8 100644
+index f73de9c..0c4e310 100644
 --- a/images/build/cross/default/Dockerfile
 +++ b/images/build/cross/default/Dockerfile
 @@ -36,6 +36,7 @@ ENV KUBE_CROSSPLATFORMS \
@@ -65,16 +65,20 @@ index f73de9c8..70f65eb8 100644
 +  linux/riscv64 \
    darwin/amd64 \
    windows/amd64 windows/386
- 
-@@ -79,7 +80,7 @@ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
+
+@@ -79,10 +83,8 @@ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
  fi
- 
+
  RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
 -  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ]; then \
+-    echo "deb http://ports.ubuntu.com/ubuntu-ports/ xenial main" > /etc/apt/sources.list.d/ports.list \
+-    && apt-key adv --no-tty --keyserver keyserver.ubuntu.com --recv-keys 40976EAF437D05B5 3B4FE6ACC0B21F32 \
+-    && apt-get update \
 +  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ] || [ ${targetArch} = "riscv64" ]; then \
-     echo "deb http://ports.ubuntu.com/ubuntu-ports/ xenial main" > /etc/apt/sources.list.d/ports.list \
-     && apt-key adv --no-tty --keyserver keyserver.ubuntu.com --recv-keys 40976EAF437D05B5 3B4FE6ACC0B21F32 \
-     && apt-get update \
++    apt-get update \
+     && apt-get install -y build-essential; \
+ fi
+
 @@ -96,6 +97,8 @@ elif [ ${targetArch} = "ppc64le" ]; then \
    ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-ppcle_64.zip"; \
  elif [ ${targetArch} = "s390x" ]; then \
