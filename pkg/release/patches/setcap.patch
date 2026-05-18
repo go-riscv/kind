@@ -1,14 +1,7 @@
-commit f205658885111428e856fa127b46f28a44f0e074
-Author: Nikolay Nikolaev <nicknickolaev@gmail.com>
-Date:   Mon Mar 18 19:45:28 2024 +0000
-
-    Fix host only build for setcap
-
 diff --git a/images/build/setcap/Makefile b/images/build/setcap/Makefile
-index de20420d..960f78a7 100644
 --- a/images/build/setcap/Makefile
 +++ b/images/build/setcap/Makefile
-@@ -36,15 +36,7 @@ QEMUIMAGE ?= multiarch/qemu-user-static
+@@ -32,15 +32,7 @@ QEMUIMAGE ?= multiarch/qemu-user-static
  export DOCKER_CLI_EXPERIMENTAL := enabled
  
  build:
@@ -24,7 +17,7 @@ index de20420d..960f78a7 100644
  		--load \
  		--platform linux/$(ARCH) \
  		-t $(IMAGE)-$(ARCH):$(IMAGE_VERSION) \
-@@ -52,7 +44,6 @@ build:
+@@ -48,7 +40,6 @@ build:
  		-t $(IMAGE)-$(ARCH):latest-$(CONFIG) \
  		--build-arg=BASEIMAGE=$(BASEIMAGE) \
  		.
