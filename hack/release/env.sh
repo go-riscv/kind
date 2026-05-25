@@ -10,6 +10,7 @@ REGISTRY="${REGISTRY:-ghcr.io/go-riscv}"
 RELEASE_TAG="${RELEASE_TAG:-}"
 NODE_IMAGE_REPO="${NODE_IMAGE_REPO:-${REGISTRY}/node}"
 NODE_IMAGE_SOURCE="${NODE_IMAGE_SOURCE:-kindest/node:latest}"
+K9S_SOURCE_DIR="${K9S_SOURCE_DIR:-${ROOT_DIR}/../k9s}"
 
 if [[ -z "${RELEASE_TAG}" && -n "${GITHUB_REF_NAME:-}" ]]; then
   RELEASE_TAG="${GITHUB_REF_NAME}"

@@ -15,6 +15,7 @@ Tagged releases in the form `vX.Y.Z` publish:
 - `kind-linux-riscv64`
 - `kubectl-linux-riscv64`
 - `kubeadm-linux-riscv64`
+- `k9s-linux-riscv64`
 - `SHA256SUMS`
 
 to the corresponding GitHub Release, and push the supporting container images plus the final node image to `ghcr.io/go-riscv`.

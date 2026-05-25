@@ -67,12 +67,14 @@ jobs:
             dist/release/kind-linux-riscv64
             dist/release/kubectl-linux-riscv64
             dist/release/kubeadm-linux-riscv64
+            dist/release/k9s-linux-riscv64
             dist/release/SHA256SUMS
           body: |
             Published riscv64 release assets:
             - kind-linux-riscv64
             - kubectl-linux-riscv64
             - kubeadm-linux-riscv64
+            - k9s-linux-riscv64
             - SHA256SUMS
 
             Published images:

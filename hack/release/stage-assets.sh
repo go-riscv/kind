@@ -8,6 +8,7 @@ declare -A asset_map=(
   ["kind"]="kind-linux-riscv64"
   ["kubectl"]="kubectl-linux-riscv64"
   ["kubeadm"]="kubeadm-linux-riscv64"
+  ["k9s"]="k9s-linux-riscv64"
 )
 
 rm -rf "${DIST_DIR}"

@@ -10,7 +10,7 @@ PKG_DIR := $(PWD)/pkg
 PKG_LIST := $(notdir $(wildcard $(PWD)/pkg/*))
 PKG_LIST := release etcd kubernetes kind
 OPTIONAL_PKG_LIST := golang protobuf
-RELEASE_ASSETS := kind-linux-riscv64 kubectl-linux-riscv64 kubeadm-linux-riscv64 SHA256SUMS
+RELEASE_ASSETS := kind-linux-riscv64 kubectl-linux-riscv64 kubeadm-linux-riscv64 k9s-linux-riscv64 SHA256SUMS
 
 .PHONY: all
 all: folders
