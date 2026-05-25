@@ -7,7 +7,8 @@ REGISTRY=ghcr.io/go-riscv
 GOLANG_VERSION=1.25.10
 GOLANG_IMAGE=$(REGISTRY)/golang:$(GOLANG_VERSION)-trixie
 
-PROTOC_ZIP=protoc-23.4-linux-riscv_64.zip
+PROTOBUF_VERSION=34.1
+PROTOC_ZIP=protoc-$(PROTOBUF_VERSION)-linux-riscv_64.zip
 
 DEBIAN_BASE_VERSION=trixie-v1.0.7
 

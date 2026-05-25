@@ -11,7 +11,20 @@ diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/
  COPY --from=go-source /usr/local/go /usr/local/go
  ENV PATH=/usr/local/go/bin:$PATH
  ENV GOROOT=/usr/local/go
-@@ -98,7 +101,10 @@ elif [ ${targetArch} = "s390x" ]; then \
+@@ -91,17 +94,25 @@ ENV PROTOBUF_VERSION 34.1
+ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
++  && if [ ${targetArch} = "riscv64" ]; then \
++       apt-get update \
++       && apt-get install -y protobuf-compiler \
++       && protoc --version; \
++     else \
+   if [ ${targetArch} = "amd64" ]; then \
+   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-x86_64.zip"; \
+ elif [ ${targetArch} = "arm64" ]; then \
+   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-aarch_64.zip"; \
+ elif [ ${targetArch} = "ppc64le" ]; then \
+   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-ppcle_64.zip"; \
+ elif [ ${targetArch} = "s390x" ]; then \
    ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-s390_64.zip"; \
  fi \
    && mkdir /tmp/protoc && cd /tmp/protoc \
@@ -23,3 +36,8 @@ diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/
    && unzip "${ZIPNAME}" \
    && chmod -R +rX /tmp/protoc \
    && cp -pr bin /usr/local \
+   && cp -pr include /usr/local \
+   && rm -rf /tmp/protoc \
+-  && protoc --version
++  && protoc --version; \
++     fi
