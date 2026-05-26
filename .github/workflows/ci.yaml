@@ -18,10 +18,7 @@ permissions:
 
 jobs:
   local-build:
-    runs-on:
-      - self-hosted
-      - linux
-      - riscv64
+    runs-on: ubuntu-24.04-riscv
     env:
       REGISTRY: ghcr.io/go-riscv
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
