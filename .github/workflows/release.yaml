@@ -23,14 +23,17 @@ jobs:
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_REF}"
+          git checkout --force FETCH_HEAD
 
       - name: Checkout k9s source
-        uses: actions/checkout@v4
-        with:
-          repository: derailed/k9s
-          ref: v0.50.18
-          path: _deps/k9s
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch v0.50.18 https://github.com/derailed/k9s.git _deps/k9s
 
       - name: Validate release tag
         run: |
