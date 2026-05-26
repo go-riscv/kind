@@ -1,0 +1,41 @@
+diff --git a/pkg/build/nodeimage/buildcontext.go b/pkg/build/nodeimage/buildcontext.go
+index 60b048d..8d69e02 100644
+--- a/pkg/build/nodeimage/buildcontext.go
++++ b/pkg/build/nodeimage/buildcontext.go
+@@ -266,12 +266,36 @@ func (c *buildContext) prePullImagesAndWriteManifests(bits kube.Bits, parsedVers
+ 		}
+ 	}()
+
++	loadLocalImage := func(image string) error {
++		tmp, err := os.CreateTemp("", "kind-nodeimage-image-*.tar")
++		if err != nil {
++			return err
++		}
++		tmpPath := tmp.Name()
++		if err := tmp.Close(); err != nil {
++			return err
++		}
++		defer os.Remove(tmpPath)
++		if err := docker.Save(image, tmpPath); err != nil {
++			return err
++		}
++		f, err := os.Open(tmpPath)
++		if err != nil {
++			return err
++		}
++		defer f.Close()
++		return importer.LoadCommand().SetStdout(os.Stdout).SetStderr(os.Stderr).SetStdin(f).Run()
++	}
++
+ 	fns := []func() error{}
+ 	osArch := dockerBuildOsAndArch(c.arch)
+ 	for _, image := range requiredImages {
+ 		image := image // https://golang.org/doc/faq#closures_and_goroutines
+ 		if !builtImages.Has(image) {
+ 			fns = append(fns, func() error {
++				if _, imageErr := docker.ImageID(image); imageErr == nil {
++					return loadLocalImage(image)
++				}
+ 				if err = importer.Pull(image, osArch); err != nil {
+ 					c.logger.Warnf("Failed to pull %s with error: %v", image, err)
+ 					runE := exec.RunErrorForError(err)

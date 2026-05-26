@@ -1,17 +1,27 @@
 include ../common.mk
 
-VERSION=0.22.0
+VERSION=0.31.0
 
 all: folders kind node-image
 
 .PHONY: $(BUILD_DIR)/kind
-$(BUILD_DIR)/kind:
+$(BUILD_DIR)/kind: folders
 	cd $(BUILD_DIR) && \
-		rm -rf kind && \
-		git clone --branch v$(VERSION) --depth 1 https://github.com/kubernetes-sigs/kind.git
+		if [ ! -d kind/.git ]; then \
+			git init kind; \
+		fi && \
+		cd kind && \
+		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/kubernetes-sigs/kind.git) && \
+		if git rev-parse --verify HEAD >/dev/null 2>&1; then \
+			git fetch origin tag v$(VERSION) && \
+			git reset --hard FETCH_HEAD; \
+		else \
+			git fetch --depth 1 origin tag v$(VERSION) && \
+			git checkout -f FETCH_HEAD; \
+		fi
 	cd $(BUILD_DIR)/kind && \
 	for patch in $(PATCH_FOLDER)/*; do \
-		patch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch; \
 	done
 
 
@@ -26,37 +36,41 @@ kind: $(BUILD_DIR)/kind
 node-image: kind $(BUILD_DIR)/kubernetes $(BUILD_DIR)/kind local-path-provisioner local-path-helper base kindnetd
 	# Build kind node image
 	KUBE_BUILD_PULL_LATEST_IMAGES=n \
-	KUBE_CROSS_IMAGE=$(REGISTRY)/kube-cross-riscv64 \
-	KUBE_CROSS_VERSION=v1.30.0-go1.22.0-bullseye.0 \
-	KUBE_GORUNNER_IMAGE=$(REGISTRY)/go-runner-riscv64:v2.3.1-go1.22.0-bookworm.0 \
-	KUBE_PROXY_BASE_IMAGE=$(REGISTRY)/distroless-iptables-riscv64:v0.5.1 \
-	KUBE_BUILD_SETCAP_IMAGE=$(REGISTRY)/setcap-riscv64:bookworm-v1.0.1 \
-	$(BIN_DIR)/kind build node-image --base-image $(REGISTRY)/base:riscv64 $(BUILD_DIR)/kubernetes
+	KUBE_CROSS_IMAGE=kube-cross-riscv64 \
+	KUBE_CROSS_VERSION=$(KUBE_CROSS_VERSION) \
+	KUBE_GORUNNER_IMAGE=go-runner-riscv64:$(KUBE_GORUNNER_VERSION) \
+	KUBE_PROXY_BASE_IMAGE=distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) \
+	KUBE_BUILD_SETCAP_IMAGE=setcap-riscv64:$(KUBE_SETCAP_VERSION) \
+	$(BIN_DIR)/kind build node-image --base-image base:riscv64 $(BUILD_DIR)/kubernetes
 
 .PHONY: local-path-provisioner
 local-path-provisioner:
 	# Build local-path-provisioner image
 	cd $(BUILD_DIR)/kind/images/local-path-provisioner && \
 	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+	docker tag $(REGISTRY)/local-path-provisioner:riscv64 local-path-provisioner:riscv64
 
 .PHONY: local-path-helper
 local-path-helper:
 	# Build local-path-helper image
 	cd $(BUILD_DIR)/kind/images/local-path-helper && \
 	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+	docker tag $(REGISTRY)/local-path-helper:riscv64 local-path-helper:riscv64
 
 .PHONY: base
 base:
 	# Build kind base image
 	cd $(BUILD_DIR)/kind/images/base && \
 	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+	docker tag $(REGISTRY)/base:riscv64 base:riscv64
 
 .PHONY: kindnetd
 kindnetd:
 	# Build kindnetd image
 	cd $(BUILD_DIR)/kind/images/kindnetd && \
-	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) KUBE_PROXY_BASE_IMAGE=$(REGISTRY)/distroless-iptables-riscv64:v0.5.1 \
+	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) KUBE_PROXY_BASE_IMAGE=$(REGISTRY)/distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) \
 make build
+	docker tag $(REGISTRY)/kindnetd:riscv64 kindnetd:riscv64
 
 distclean:
 	rm -rf $(BUILD_DIR)

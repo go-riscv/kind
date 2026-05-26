@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: "Run a kind create cluster smoke test after the local build"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  local-build:
+    runs-on: ubuntu-24.04-riscv
+    env:
+      REGISTRY: ghcr.io/go-riscv
+      K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
+    steps:
+      - name: Checkout repository
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --depth=1 origin "pull/${{ github.event.pull_request.number }}/merge"
+          else
+            git fetch --depth=1 origin "${GITHUB_REF}"
+          fi
+          git checkout --force FETCH_HEAD
+
+      - name: Checkout k9s source
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch v0.50.18 https://github.com/derailed/k9s.git _deps/k9s
+
+      - name: Validate build environment
+        run: |
+          set -euo pipefail
+          docker version
+          docker buildx version
+          make --version
+          git --version
+          go version
+
+      - name: Build local release images
+        run: make release-build-images
+
+      - name: Build local release binaries
+        run: make release-build-binaries
+
+      - name: Stage and checksum release assets
+        run: make release-checksums
+
+      - name: Verify release asset names
+        run: |
+          set -euo pipefail
+          test -x dist/release/kind-linux-riscv64
+          test -x dist/release/kubectl-linux-riscv64
+          test -x dist/release/kubeadm-linux-riscv64
+          test -x dist/release/k9s-linux-riscv64
+          (cd dist/release && sha256sum -c SHA256SUMS)
+
+      - name: Upload local release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: riscv64-release-assets
+          path: |
+            dist/release/kind-linux-riscv64
+            dist/release/kubectl-linux-riscv64
+            dist/release/kubeadm-linux-riscv64
+            dist/release/k9s-linux-riscv64
+            dist/release/SHA256SUMS
+
+      - name: Optional kind cluster smoke test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_smoke }}
+        run: hack/ci/kind-smoke.sh
