@@ -39,3 +39,16 @@ kind_source_image() {
   echo "Unable to find the built kind node image; checked ${NODE_IMAGE_SOURCE} and kindest/node:*" >&2
   return 1
 }
+
+release_asset_pairs() {
+  cat <<'EOF'
+kind:kind-linux-riscv64
+kubectl:kubectl-linux-riscv64
+kubeadm:kubeadm-linux-riscv64
+k9s:k9s-linux-riscv64
+EOF
+}
+
+release_asset_names() {
+  release_asset_pairs | cut -d: -f2
+}
