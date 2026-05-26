@@ -18,44 +18,13 @@ diff --git a/images/build/cross/Makefile b/images/build/cross/Makefile
  #       not supported in specific architectures
 -PLATFORMS ?= linux/amd64 linux/arm64 #linux/arm
 +PLATFORMS ?= linux/amd64 linux/arm64 linux/riscv64 #linux/arm
- 
+
 -KUBE_DYNAMIC_CROSSPLATFORMS ?= "arm64 armhf i386 ppc64el s390x"
 -KUBE_CROSSPLATFORMS ?= "linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x darwin/amd64 windows/amd64 windows/386"
 +KUBE_DYNAMIC_CROSSPLATFORMS ?= "arm64 armhf i386 ppc64el riscv64 s390x"
 +KUBE_CROSSPLATFORMS ?= "linux/386 linux/arm linux/arm64 linux/ppc64le linux/riscv64 linux/s390x darwin/amd64 windows/amd64 windows/386"
- 
+
  # for legacy images only build linux/amd64
-diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/Dockerfile
---- a/images/build/cross/default/Dockerfile
-+++ b/images/build/cross/default/Dockerfile
-@@ -30,7 +30,7 @@
- # the default value for KUBE_DYNAMIC_CROSSPLATFORMS and KUBE_CROSSPLATFORMS is set for
- # backward compatibility with the old Dockerfile. 
--ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el s390x"
--ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x darwin/amd64 windows/amd64 windows/386"
-+ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el riscv64 s390x"
-+ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/riscv64 linux/s390x darwin/amd64 windows/amd64 windows/386"
- 
- ENV KUBE_DYNAMIC_CROSSPLATFORMS=${KUBE_DYNAMIC_CROSSPLATFORMS}
- ENV KUBE_CROSSPLATFORMS=${KUBE_CROSSPLATFORMS}
-@@ -82,1 +82,1 @@
--    && apt-get install -y crossbuild-essential-ppc64el crossbuild-essential-s390x; \
-+    && apt-get install -y crossbuild-essential-ppc64el crossbuild-essential-riscv64 crossbuild-essential-s390x; \
-@@ -85,5 +85,5 @@
- RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
--  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ]; then \
-+  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "riscv64" ] || [ ${targetArch} = "s390x" ]; then \
-     apt-get update \
-     && apt-get install -y build-essential; \
- fi
-@@ -97,5 +97,7 @@
- elif [ ${targetArch} = "ppc64le" ]; then \
-   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-ppcle_64.zip"; \
-+elif [ ${targetArch} = "riscv64" ]; then \
-+  ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-riscv_64.zip"; \
- elif [ ${targetArch} = "s390x" ]; then \
-   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-s390_64.zip"; \
- fi \
 diff --git a/images/build/debian-base/Makefile b/images/build/debian-base/Makefile
 --- a/images/build/debian-base/Makefile
 +++ b/images/build/debian-base/Makefile
@@ -63,7 +32,7 @@ diff --git a/images/build/debian-base/Makefile b/images/build/debian-base/Makefi
  ARCH ?= amd64
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
- 
+
 @@ -50,2 +50,6 @@
  endif
 +ifeq ($(ARCH),riscv64)
@@ -78,16 +47,16 @@ diff --git a/images/build/distroless-iptables/Makefile b/images/build/distroless
  ARCH?=amd64
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
- 
+
 diff --git a/images/build/go-runner/Makefile b/images/build/go-runner/Makefile
 --- a/images/build/go-runner/Makefile
 +++ b/images/build/go-runner/Makefile
 @@ -34,5 +34,5 @@
  IMAGE_VERSION = $(APP_VERSION)-$(BUILD_METADATA)
- 
+
 -PLATFORMS ?= linux/amd64 linux/arm64 linux/arm linux/ppc64le linux/s390x
 +PLATFORMS ?= linux/amd64 linux/arm64 linux/arm linux/ppc64le linux/riscv64 linux/s390x
- 
+
  HOST_GOOS ?= $(shell go env GOOS)
 diff --git a/images/build/setcap/Makefile b/images/build/setcap/Makefile
 --- a/images/build/setcap/Makefile
@@ -96,5 +65,5 @@ diff --git a/images/build/setcap/Makefile b/images/build/setcap/Makefile
  ARCH?=amd64
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
- 
+
  BASE_REGISTRY?=registry.k8s.io/build-image

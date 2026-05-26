@@ -9,7 +9,7 @@ diff --git a/images/Makefile.common.in b/images/Makefile.common.in
 -	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --pull --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
 +build:
 +	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
- 
+
  # push the cross built image
  push: OUTPUT=--push
 diff --git a/images/base/Dockerfile b/images/base/Dockerfile
@@ -22,18 +22,28 @@ diff --git a/images/base/Dockerfile b/images/base/Dockerfile
 -ARG BASE_IMAGE=debian:bookworm-slim
 +ARG BASE_IMAGE=debian:trixie-slim
  FROM $BASE_IMAGE AS base
- 
+
  # copy in static files
-@@ -109,10 +109,10 @@ COPY --chmod=0755 files/usr/local/bin/* /usr/local/bin/
- COPY --chmod=0755 scripts/third_party/gimme/gimme /usr/local/bin/
+@@ -85,7 +85,8 @@ RUN chmod 755 /kind/bin && \
+     && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+     && rm -f /lib/systemd/system/basic.target.wants/* \
+     && echo "ReadKMsg=no" >> /etc/systemd/journald.conf \
+-    && ln -s "$(which systemd)" /sbin/init
++    && mkdir -p /sbin \
++    && ln -sf /usr/lib/systemd/systemd /sbin/init
+
+ # NOTE: systemd-binfmt.service will register things into binfmt_misc which is kernel-global
+ RUN echo "Enabling / Disabling services ... " \
+@@ -108,10 +109,10 @@
  COPY --chmod=0755 scripts/target-cc /usr/local/bin/
  # tools needed at build-time only
  # first ensure we can install packages for both architectures
 -RUN dpkg --add-architecture arm64 && dpkg --add-architecture amd64 \
-+RUN dpkg --add-architecture arm64 && dpkg --add-architecture amd64 && dpkg --add-architecture riscv64 \
-     && clean-install bash ca-certificates curl git make pkg-config \
+-    && clean-install bash ca-certificates curl git make pkg-config \
 -    crossbuild-essential-amd64 crossbuild-essential-arm64 \
 -    libseccomp-dev:amd64 libseccomp-dev:arm64
++RUN dpkg --add-architecture arm64 && dpkg --add-architecture amd64 && dpkg --add-architecture riscv64 \
++    && clean-install bash ca-certificates curl git make pkg-config build-essential \
 +    crossbuild-essential-amd64 crossbuild-essential-arm64 crossbuild-essential-riscv64 \
 +    libseccomp-dev:amd64 libseccomp-dev:arm64 libseccomp-dev:riscv64
  # set by makefile to .go-version
@@ -43,7 +53,7 @@ diff --git a/images/base/files/etc/containerd/config.toml b/images/base/files/et
 --- a/images/base/files/etc/containerd/config.toml
 +++ b/images/base/files/etc/containerd/config.toml
 @@ -34,7 +34,7 @@
- 
+
  [plugins."io.containerd.grpc.v1.cri"]
    # use fixed sandbox image
 -  sandbox_image = "registry.k8s.io/pause:3.10"
@@ -61,7 +71,7 @@ diff --git a/images/base/scripts/target-cc b/images/base/scripts/target-cc
    amd64)
      echo -n 'x86_64-linux-gnu-gcc' ;;
 +  riscv64)
-+    echo -n 'riscv64-linux-gnu-gcc' ;;
++    echo -n 'gcc' ;;
    *)
      exit 1 ;;
  esac
@@ -70,10 +80,10 @@ diff --git a/images/kindnetd/Dockerfile b/images/kindnetd/Dockerfile
 +++ b/images/kindnetd/Dockerfile
 @@ -33,7 +33,7 @@ RUN eval "$(gimme "${GO_VERSION}")" \
      && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES ./cmd/kindnetd
- 
+
  # build real kindnetd image
 -FROM registry.k8s.io/build-image/distroless-iptables:v0.7.4
-+FROM ghcr.io/go-riscv/distroless-iptables-riscv64:v0.8.10
++FROM distroless-iptables-riscv64:v0.8.10
  COPY --from=0 --chown=root:root ./go/src/kindnetd /bin/kindnetd
  COPY --from=0 /_LICENSES/* /LICENSES/
  COPY --chmod=0644 files/LICENSES/* /LICENSES/*
@@ -83,28 +93,79 @@ diff --git a/images/local-path-helper/Dockerfile b/images/local-path-helper/Dock
 @@ -15,7 +15,7 @@
  # This image is contains the binaries needed for the local-path-provisioner
  # helper pod. Currently that means: sh, rm, mkdir
- 
+
 -ARG BASE="registry.k8s.io/build-image/debian-base:bullseye-v1.4.3"
 +ARG BASE="debian:trixie-slim"
  FROM ${BASE} AS build
- 
+
  # NOTE: copyrights.tar.gz is a quirk of Kubernetes's debian-base image
 @@ -42,6 +42,6 @@ RUN mkdir -p "${STAGE_DIR}" && \
      find "${STAGE_DIR}"
- 
+
  # copy staged binary + deps + copyright into distroless
 -FROM "gcr.io/distroless/static-debian11"
 +FROM "gcr.io/distroless/static-debian13"
  ARG STAGE_DIR="/opt/stage"
  COPY --from=build "${STAGE_DIR}/" /
+diff --git a/images/local-path-helper/stage-binary-and-deps.sh b/images/local-path-helper/stage-binary-and-deps.sh
+--- a/images/local-path-helper/stage-binary-and-deps.sh
++++ b/images/local-path-helper/stage-binary-and-deps.sh
+@@ -22,6 +22,15 @@ set -o errexit
+ set -o nounset
+ set -o pipefail
+
++# stage_path rewrites paths through their canonical parent directories while
++# preserving the original basename. This avoids creating top-level usrmerge
++# aliases like /bin or /lib in the staging tree, which can conflict with
++# symlinks already present in distroless images.
++stage_path() {
++    local path="${1}"
++    echo "$(realpath "$(dirname "${path}")")/$(basename "${path}")"
++}
++
+ # file_to_package identifies the debian package that provided the file $1
+ file_to_package() {
+     # `dpkg-query --search $file-pattern` outputs lines with the format: "$package: $file-path"
+@@ -38,12 +47,15 @@ package_to_copyright() {
+ # stage_file stages the filepath $1 to $2, following symlinks
+ # and staging copyrights
+ stage_file() {
+-    cp -a --parents "${1}" "${2}"
++    local stage_source
++    stage_source="$(stage_path "${1}")"
++
++    cp -a --parents "${stage_source}" "${2}"
+     # recursively follow symlinks
+-    if [[ -L "${1}" ]]; then
+-        stage_file "$(cd "$(dirname "${1}")"; realpath -s "$(readlink "${1}")")" "${2}"
++    if [[ -L "${stage_source}" ]]; then
++        stage_file "$(cd "$(dirname "${stage_source}")"; realpath -s "$(readlink "${stage_source}")")" "${2}"
+     fi
+     # get the package so we can stage package metadata as well
+-    package="$(file_to_package "${1}")"
++    package="$(file_to_package "${stage_source}")"
+     # stage the copyright for the file
+     cp -a --parents "$(package_to_copyright "${package}")" "${2}"
+@@ -74,7 +86,7 @@ main(){
+
+     # locate the path to the binary
+     local binary_path
+-    binary_path="$(which "${BINARY}")"
++    binary_path="$(command -v "${BINARY}")"
+
+     # ensure package metadata dir
+     mkdir -p "${STAGE_DIR}"/var/lib/dpkg/status.d/
 diff --git a/images/local-path-provisioner/Dockerfile b/images/local-path-provisioner/Dockerfile
 --- a/images/local-path-provisioner/Dockerfile
 +++ b/images/local-path-provisioner/Dockerfile
-@@ -27,7 +27,7 @@ RUN eval "$(gimme "${GO_VERSION}")" \
-     && mv bin/local-path-provisioner-$TARGETARCH /usr/local/bin/local-path-provisioner \
+@@ -27,8 +27,10 @@ RUN eval "$(gimme "${GO_VERSION}")" \
+-    && mv bin/local-path-provisioner-$TARGETARCH /usr/local/bin/local-path-provisioner \
++    && binary="bin/local-path-provisioner-$TARGETARCH" \
++    && if [ ! -f "${binary}" ]; then binary="$(find bin -maxdepth 1 -type f -name 'local-path-provisioner-*' | head -n1)"; fi \
++    && mv "${binary}" /usr/local/bin/local-path-provisioner \
      && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest \
      && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES .
- 
+
 -FROM gcr.io/distroless/base-debian11
 +FROM gcr.io/distroless/base-debian13
  COPY --from=0 /usr/local/bin/local-path-provisioner /usr/local/bin/local-path-provisioner
@@ -130,10 +191,10 @@ diff --git a/pkg/build/nodeimage/const_cni.go b/pkg/build/nodeimage/const_cni.go
  /*
  The default CNI manifest and images are our own tiny kindnet
  */
- 
+
 -const kindnetdImage = "docker.io/kindest/kindnetd:v20251212-v0.29.0-alpha-105-g20ccfc88"
-+const kindnetdImage = "ghcr.io/go-riscv/kindnetd:riscv64"
- 
++const kindnetdImage = "kindnetd:riscv64"
+
  var defaultCNIImages = []string{kindnetdImage}
 diff --git a/pkg/build/nodeimage/const_storage.go b/pkg/build/nodeimage/const_storage.go
 --- a/pkg/build/nodeimage/const_storage.go
@@ -141,11 +202,11 @@ diff --git a/pkg/build/nodeimage/const_storage.go b/pkg/build/nodeimage/const_st
 @@ -26,8 +26,8 @@ NOTE: we have customized it in the following ways:
  - tolerate control plane scheduling taints
  */
- 
+
 -const storageProvisionerImage = "docker.io/kindest/local-path-provisioner:v20251212-v0.29.0-alpha-105-g20ccfc88"
 -const storageHelperImage = "docker.io/kindest/local-path-helper:v20251211-v0.29.0-alpha-100-g82a92c5d"
-+const storageProvisionerImage = "ghcr.io/go-riscv/local-path-provisioner:riscv64"
-+const storageHelperImage = "ghcr.io/go-riscv/local-path-helper:riscv64"
- 
++const storageProvisionerImage = "local-path-provisioner:riscv64"
++const storageHelperImage = "local-path-helper:riscv64"
+
  // image we need to preload
  var defaultStorageImages = []string{storageProvisionerImage, storageHelperImage}

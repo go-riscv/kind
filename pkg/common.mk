@@ -29,11 +29,24 @@ folders:
 	mkdir -p $(BIN_DIR)
 
 .PHONY: $(BUILD_DIR)/kubernetes
-$(BUILD_DIR)/kubernetes:
+$(BUILD_DIR)/kubernetes: folders
 	cd $(BUILD_DIR) && \
-		rm -rf kubernetes && \
-		git clone --filter=tree:0 --branch release-$(KUBERNETES_VERSION) https://github.com/kubernetes/kubernetes.git && \
+		if [ ! -d kubernetes/.git ]; then \
+			git init kubernetes; \
+		fi && \
+		cd kubernetes && \
+		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/kubernetes/kubernetes.git) && \
+		if git rev-parse --verify HEAD >/dev/null 2>&1; then \
+			git fetch origin release-$(KUBERNETES_VERSION) && \
+			git reset --hard FETCH_HEAD; \
+		else \
+			git fetch --depth 1 origin release-$(KUBERNETES_VERSION) && \
+			git checkout -f FETCH_HEAD; \
+		fi && \
+		if ! git describe --tags --match='v*' --abbrev=14 HEAD >/dev/null 2>&1; then \
+			git tag -f v$(KUBERNETES_VERSION).0-rv64.0 HEAD; \
+		fi && \
 	cd $(BUILD_DIR)/kubernetes && \
 	for patch in $(PWD)/../kubernetes/patches/*; do \
-		patch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch; \
 	done

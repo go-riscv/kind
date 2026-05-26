@@ -8,11 +8,22 @@ all: etcd
 etcd: folders
 	# Build etcd image
 	cd $(BUILD_DIR) && \
-		rm -rf etcd && \
-		git clone --branch release-$(VERSION) --depth 1 https://github.com/etcd-io/etcd.git
+		if [ ! -d etcd/.git ]; then \
+			git init etcd; \
+		fi && \
+		cd etcd && \
+		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/etcd-io/etcd.git) && \
+		if git rev-parse --verify HEAD >/dev/null 2>&1; then \
+			git fetch origin release-$(VERSION) && \
+			git reset --hard FETCH_HEAD; \
+		else \
+			git fetch --depth 1 origin release-$(VERSION) && \
+			git checkout -f FETCH_HEAD; \
+		fi && \
+		rm -f .github/workflows/build.yaml Dockerfile-release.riscv64
 	cd $(BUILD_DIR)/etcd && \
 	for patch in $(PATCH_FOLDER)/*; do \
-		patch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch; \
 	done
 	cd $(BUILD_DIR)/etcd && \
 		make && \

@@ -3,7 +3,7 @@ diff --git a/images/build/distroless-iptables/Makefile b/images/build/distroless
 +++ b/images/build/distroless-iptables/Makefile
 @@ -40,15 +40,7 @@ export DOCKER_CLI_EXPERIMENTAL := enabled
  SUDO=$(if $(filter 0,$(shell id -u)),,sudo)
- 
+
  build:
 -	# Fix possible issues with the local umask
 -	umask 0022
@@ -22,6 +22,69 @@ diff --git a/images/build/distroless-iptables/Makefile b/images/build/distroless
  		--build-arg=SKIP_WRAPPER_CHECK=$(SKIP_WRAPPER_CHECK) \
  		$(CONFIG)
 -	docker buildx rm $$BUILDER
- 
+
  push: build
  	docker push $(IMAGE)-$(ARCH):$(IMAGE_VERSION)
+diff --git a/images/build/distroless-iptables/distroless-bookworm/Dockerfile b/images/build/distroless-iptables/distroless-bookworm/Dockerfile
+index 8e263ac0..d997559e 100644
+--- a/images/build/distroless-iptables/distroless-bookworm/Dockerfile
++++ b/images/build/distroless-iptables/distroless-bookworm/Dockerfile
+@@ -43,7 +43,15 @@ RUN apt -y update && \
+
+ RUN curl -o "${STAGE_DIR}"/iptables-wrapper-installer.sh https://raw.githubusercontent.com/kubernetes-sigs/iptables-wrappers/v2/iptables-wrapper-installer.sh && \
+     chmod +x "${STAGE_DIR}"/iptables-wrapper-installer.sh && \
+-    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh
++    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh && \
++    mkdir -p "${STAGE_DIR}"/usr/bin && \
++    cp -a "${STAGE_DIR}"/bin/. "${STAGE_DIR}"/usr/bin/ && \
++    rm -rf "${STAGE_DIR}"/bin && \
++    if [ -d "${STAGE_DIR}"/lib ]; then \
++      mkdir -p "${STAGE_DIR}"/usr/lib && \
++      cp -a "${STAGE_DIR}"/lib/. "${STAGE_DIR}"/usr/lib/ && \
++      rm -rf "${STAGE_DIR}"/lib; \
++    fi
+
+ # we're going to borrow the /go-runner binary in the final image
+ # dedupe this binary by just copying it from the go-runner image
+diff --git a/images/build/distroless-iptables/distroless-bullseye/Dockerfile b/images/build/distroless-iptables/distroless-bullseye/Dockerfile
+index fb7f5a3a..f1cd6358 100644
+--- a/images/build/distroless-iptables/distroless-bullseye/Dockerfile
++++ b/images/build/distroless-iptables/distroless-bullseye/Dockerfile
+@@ -42,7 +42,15 @@ RUN apt -y update && \
+
+ RUN curl -o "${STAGE_DIR}"/iptables-wrapper-installer.sh https://raw.githubusercontent.com/kubernetes-sigs/iptables-wrappers/v2/iptables-wrapper-installer.sh && \
+     chmod +x "${STAGE_DIR}"/iptables-wrapper-installer.sh && \
+-    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh
++    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh && \
++    mkdir -p "${STAGE_DIR}"/usr/bin && \
++    cp -a "${STAGE_DIR}"/bin/. "${STAGE_DIR}"/usr/bin/ && \
++    rm -rf "${STAGE_DIR}"/bin && \
++    if [ -d "${STAGE_DIR}"/lib ]; then \
++      mkdir -p "${STAGE_DIR}"/usr/lib && \
++      cp -a "${STAGE_DIR}"/lib/. "${STAGE_DIR}"/usr/lib/ && \
++      rm -rf "${STAGE_DIR}"/lib; \
++    fi
+
+ # we're going to borrow the /go-runner binary in the final image
+ # dedupe this binary by just copying it from the go-runner image
+diff --git a/images/build/distroless-iptables/distroless-trixie/Dockerfile b/images/build/distroless-iptables/distroless-trixie/Dockerfile
+index a0180920..7c63d479 100644
+--- a/images/build/distroless-iptables/distroless-trixie/Dockerfile
++++ b/images/build/distroless-iptables/distroless-trixie/Dockerfile
+@@ -43,7 +43,15 @@ RUN apt -y update && \
+
+ RUN curl -o "${STAGE_DIR}"/iptables-wrapper-installer.sh https://raw.githubusercontent.com/kubernetes-sigs/iptables-wrappers/v2/iptables-wrapper-installer.sh && \
+     chmod +x "${STAGE_DIR}"/iptables-wrapper-installer.sh && \
+-    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh
++    ln -sf /bin/dash "${STAGE_DIR}"/bin/sh && \
++    mkdir -p "${STAGE_DIR}"/usr/bin && \
++    cp -a "${STAGE_DIR}"/bin/. "${STAGE_DIR}"/usr/bin/ && \
++    rm -rf "${STAGE_DIR}"/bin && \
++    if [ -d "${STAGE_DIR}"/lib ]; then \
++      mkdir -p "${STAGE_DIR}"/usr/lib && \
++      cp -a "${STAGE_DIR}"/lib/. "${STAGE_DIR}"/usr/lib/ && \
++      rm -rf "${STAGE_DIR}"/lib; \
++    fi
+
+ # we're going to borrow the /go-runner binary in the final image
+ # dedupe this binary by just copying it from the go-runner image
