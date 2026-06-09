@@ -21,6 +21,9 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
+      BUILDX_CONTAINER_CACHE_ARGS: >-
+        --cache-from type=gha,scope=release-images-riscv64
+        --cache-to type=gha,scope=release-images-riscv64,mode=max
     steps:
       - name: Checkout repository
         run: |
@@ -40,6 +43,17 @@ jobs:
           set -euo pipefail
           [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
 
+      - name: Restore Go build caches
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-riscv64-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-riscv64-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Validate build environment
         run: |
           set -euo pipefail
@@ -47,6 +61,9 @@ jobs:
           docker buildx version
           make --version
           git --version
+
+      - name: Verify CI baseline optimization contract
+        run: make verify-ci-baseline-optimization
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

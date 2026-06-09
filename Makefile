@@ -1,5 +1,6 @@
 
-DEBIAN_VERSION=sid
+DEBIAN_SUITE?=trixie
+DEBIAN_VERSION?=13
 PWD=$(shell pwd)
 BIN_DIR=$(PWD)/bin
 DIST_DIR=$(PWD)/dist/release
@@ -67,6 +68,10 @@ release-artifacts: release-build-binaries release-checksums
 .PHONY: release-publish
 release-publish: release-build-images release-artifacts
 	@$(PWD)/hack/release/retag-and-push-images.sh publish
+
+.PHONY: verify-ci-baseline-optimization
+verify-ci-baseline-optimization:
+	@$(PWD)/hack/ci/verify-ci-baseline-optimization.sh
 
 ####################################################
 # kind cluster and app deployment			 	   #

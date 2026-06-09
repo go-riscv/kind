@@ -1,0 +1,73 @@
+name: Baseline Images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/baseline-images.yaml"
+      - "pkg/common.mk"
+      - "pkg/release/**"
+      - "hack/release/**"
+
+concurrency:
+  group: baseline-images-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-baselines:
+    runs-on: ubuntu-24.04-riscv
+    env:
+      REGISTRY: ghcr.io/go-riscv
+    steps:
+      - name: Checkout repository
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_REF}"
+          git checkout --force FETCH_HEAD
+
+      - name: Validate build environment
+        run: |
+          set -euo pipefail
+          docker version
+          docker buildx version
+          make --version
+          git --version
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify baseline optimization contract
+        run: make verify-ci-baseline-optimization
+
+      - name: Build baseline helper images from source
+        run: make -C pkg/release release
+
+      - name: Push baseline helper images
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            [[ -n "${image}" ]] || continue
+            docker push "${image}"
+          done < <(make -s -f pkg/common.mk print-baseline-image-refs)
+
+      - name: Emit baseline digest summary
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            [[ -n "${image}" ]] || continue
+            docker buildx imagetools inspect "${image}" | sed -n "1,20p"
+          done < <(make -s -f pkg/common.mk print-baseline-image-refs)
