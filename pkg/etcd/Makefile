@@ -23,7 +23,7 @@ etcd: folders
 		rm -f .github/workflows/build.yaml Dockerfile-release.riscv64
 	cd $(BUILD_DIR)/etcd && \
 	for patch in $(PATCH_FOLDER)/*; do \
-		patch -N --no-backup-if-mismatch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
 	done
 	cd $(BUILD_DIR)/etcd && \
 		make && \

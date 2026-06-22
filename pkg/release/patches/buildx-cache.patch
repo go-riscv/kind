@@ -1,0 +1,16 @@
+diff --git a/images/Makefile.common-image b/images/Makefile.common-image
+--- a/images/Makefile.common-image
++++ b/images/Makefile.common-image
+@@ -35,0 +36,2 @@ endif
++BUILDX_CACHE_ARGS ?=
++
+@@ -46,0 +49 @@ container: check-env init-docker-buildx
++			$(BUILDX_CACHE_ARGS) \
+diff --git a/images/build/cross/Makefile b/images/build/cross/Makefile
+--- a/images/build/cross/Makefile
++++ b/images/build/cross/Makefile
+@@ -72,0 +73,2 @@ endif
++BUILDX_CACHE_ARGS ?=
++
+@@ -83,0 +86 @@ container: check-env init-docker-buildx
++			$(BUILDX_CACHE_ARGS) \

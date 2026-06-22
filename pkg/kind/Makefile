@@ -21,7 +21,7 @@ $(BUILD_DIR)/kind: folders
 		fi
 	cd $(BUILD_DIR)/kind && \
 	for patch in $(PATCH_FOLDER)/*; do \
-		patch -N --no-backup-if-mismatch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
 	done
 
 

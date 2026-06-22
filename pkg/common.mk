@@ -4,24 +4,28 @@ BIN_DIR=$(PWD)/../../bin
 PATCH_FOLDER=$(PWD)/patches
 REGISTRY=ghcr.io/go-riscv
 
+DEBIAN_SUITE=trixie
+DEBIAN_VERSION=13
+
 GOLANG_VERSION=1.25.10
-GOLANG_IMAGE=$(REGISTRY)/golang:$(GOLANG_VERSION)-trixie
+GO_TOOLCHAIN_VERSION=$(GOLANG_VERSION)
+GOLANG_IMAGE=$(REGISTRY)/golang:$(GOLANG_VERSION)-$(DEBIAN_SUITE)
 
 PROTOBUF_VERSION=34.1
 PROTOC_ZIP=protoc-$(PROTOBUF_VERSION)-linux-riscv_64.zip
 
-DEBIAN_BASE_VERSION=trixie-v1.0.7
+DEBIAN_BASE_VERSION=$(DEBIAN_SUITE)-v1.0.7
 
 DISTROLESS_REGISTRY=gcr.io/distroless
 DISTROLESS_IMAGE=static-debian13
 
-DISTROLESS_IPTABLES_BASEIMAGE=debian:trixie-slim
+DISTROLESS_IPTABLES_BASEIMAGE=debian:$(DEBIAN_SUITE)-slim
 
 KUBERNETES_VERSION=1.35
-KUBE_CROSS_VERSION=v1.35.0-go1.25.10-trixie.0
-KUBE_GORUNNER_VERSION=v2.4.0-go1.25.10-trixie.0
+KUBE_CROSS_VERSION=v1.35.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
+KUBE_GORUNNER_VERSION=v2.4.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
 KUBE_PROXY_BASE_VERSION=v0.8.10
-KUBE_SETCAP_VERSION=trixie-v1.0.7
+KUBE_SETCAP_VERSION=$(DEBIAN_SUITE)-v1.0.7
 PAUSE_VERSION=3.10.1-linux-riscv64
 KIND_IMAGE_TAG=riscv64
 
@@ -52,6 +56,17 @@ RELEASE_IMAGE_REFS= \
 print-release-image-refs:
 	@for image in $(RELEASE_IMAGE_REFS); do printf "%s\n" "$$image"; done
 
+BASELINE_IMAGE_REFS= \
+	$(KUBE_CROSS_RELEASE_IMAGE) \
+	$(DEBIAN_BASE_RELEASE_IMAGE) \
+	$(KUBE_GORUNNER_RELEASE_IMAGE) \
+	$(KUBE_SETCAP_RELEASE_IMAGE) \
+	$(KUBE_PROXY_BASE_RELEASE_IMAGE)
+
+.PHONY: print-baseline-image-refs
+print-baseline-image-refs:
+	@for image in $(BASELINE_IMAGE_REFS); do printf "%s\n" "$$image"; done
+
 .PHONY: folders
 folders:
 	mkdir -p $(BUILD_DIR)
@@ -77,5 +92,5 @@ $(BUILD_DIR)/kubernetes: folders
 		fi && \
 	cd $(BUILD_DIR)/kubernetes && \
 	for patch in $(PWD)/../kubernetes/patches/*; do \
-		patch -N --no-backup-if-mismatch -p1 < $$patch; \
+		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
 	done

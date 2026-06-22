@@ -2,25 +2,15 @@ diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/
 index fa1b807e..a5e19456 100644
 --- a/images/build/cross/default/Dockerfile
 +++ b/images/build/cross/default/Dockerfile
-@@ -29,13 +29,16 @@ ENV GOARM 7
-
- # the default value for KUBE_DYNAMIC_CROSSPLATFORMS and KUBE_CROSSPLATFORMS is set for
- # backward compatibility with the old Dockerfile.
+@@ -31,2 +31,2 @@
 -ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el s390x"
 -ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x darwin/amd64 windows/amd64 windows/386"
 +ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el riscv64 s390x"
 +ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/riscv64 linux/s390x darwin/amd64 windows/amd64 windows/386"
-
- ENV KUBE_DYNAMIC_CROSSPLATFORMS=${KUBE_DYNAMIC_CROSSPLATFORMS}
- ENV KUBE_CROSSPLATFORMS=${KUBE_CROSSPLATFORMS}
-
- ##------------------------------------------------------------
+@@ -37,0 +38,3 @@
 +
 +# Copy precompiled artifacts that are awkward to fetch for riscv64.
 +COPY precompiled /precompiled
- COPY --from=go-source /usr/local/go /usr/local/go
- ENV PATH=/usr/local/go/bin:$PATH
- ENV GOROOT=/usr/local/go
 @@ -79,34 +82,46 @@ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
    && if [ ${targetArch} = "arm64" ]; then \
      apt-get update \

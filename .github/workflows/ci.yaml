@@ -22,6 +22,11 @@ jobs:
     env:
       REGISTRY: ghcr.io/go-riscv
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
+      BUILDX_CONTAINER_CACHE_ARGS: >-
+        --cache-from type=gha,scope=release-images-riscv64
+        --cache-to type=gha,scope=release-images-riscv64,mode=max
+      USE_PREBUILT_BASELINES: ${{ vars.USE_PREBUILT_BASELINES }}
+      NO_APT_PR_CI: ${{ vars.USE_PREBUILT_BASELINES }}
     steps:
       - name: Checkout repository
         run: |
@@ -40,6 +45,17 @@ jobs:
           set -euo pipefail
           git clone --depth=1 --branch v0.50.18 https://github.com/derailed/k9s.git _deps/k9s
 
+      - name: Restore Go build caches
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-riscv64-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            go-riscv64-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Validate build environment
         run: |
           set -euo pipefail
@@ -48,6 +64,9 @@ jobs:
           make --version
           git --version
           go version
+
+      - name: Verify CI baseline optimization contract
+        run: make verify-ci-baseline-optimization
 
       - name: Build local release images
         run: make release-build-images
