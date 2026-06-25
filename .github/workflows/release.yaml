@@ -19,7 +19,7 @@ jobs:
     env:
       REGISTRY: ghcr.io/go-riscv
       RELEASE_TAG: ${{ github.ref_name }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
       BUILDX_CONTAINER_CACHE_ARGS: >-
         --cache-from type=gha,scope=release-images-riscv64
@@ -70,7 +70,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build release images
         run: make release-build-images
