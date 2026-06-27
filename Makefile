@@ -79,7 +79,7 @@ verify-ci-baseline-optimization:
 .PHONY: kind-cluster
 kind-cluster:
 	# build kind cluster
-	$(BIN_DIR)/kind create cluster --retain --config config/kind.yaml
+	$(BIN_DIR)/kind create cluster --retain --config config/kind.yaml --image kindest/node:latest
 	$(BIN_DIR)/kind load docker-image $(REGISTRY)/local-path-helper:riscv64
 	$(BIN_DIR)/kind load docker-image $(REGISTRY)/local-path-provisioner:riscv64
 

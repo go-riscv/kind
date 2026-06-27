@@ -24,6 +24,7 @@ Mutable tag-only refs are rejected by `hack/release/verify-baseline-images.sh`.
 These are not trusted as generic PR baselines in the first pass:
 
 - `pause`
+- `etcd`
 - `base`
 - `kindnetd`
 - `local-path-helper`

@@ -1,6 +1,6 @@
 include ../common.mk
 
-VERSION=3.5
+VERSION=$(ETCD_VERSION)
 
 all: etcd
 
