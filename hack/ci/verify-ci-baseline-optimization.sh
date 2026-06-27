@@ -26,7 +26,7 @@ mapfile -t baselines < <(make -s -f pkg/common.mk print-baseline-image-refs)
 for expected in kube-cross-riscv64 debian-base-riscv64 go-runner-riscv64 setcap-riscv64 distroless-iptables-riscv64; do
   printf "%s\n" "${baselines[@]}" | grep -q "/${expected}:" || fail "missing stable baseline ref for ${expected}"
 done
-for source_img in pause base kindnetd local-path-helper local-path-provisioner "final kind node image"; do
+for source_img in pause etcd base kindnetd local-path-helper local-path-provisioner "final kind node image"; do
   grep -q "${source_img}" docs/ci-baseline-policy.md || fail "source-derived image not documented: ${source_img}"
 done
 grep -q "pause" docs/ci-baseline-policy.md || fail "pause classification missing"

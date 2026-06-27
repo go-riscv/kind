@@ -23,3 +23,5 @@ to the corresponding GitHub Release, and push the supporting container images pl
 The published node image reference is:
 
 `ghcr.io/go-riscv/node:vX.Y.Z`
+
+The published `kind-linux-riscv64` binary is built with that GHCR node image as its default node image; override it with `--image` or a KinD config only when using a local/custom node image.

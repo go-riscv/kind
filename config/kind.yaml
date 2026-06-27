@@ -2,7 +2,6 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 - role: control-plane
-  image: kindest/node:latest
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration
@@ -14,4 +13,3 @@ nodes:
       featureGates:
         SupportIPVSProxyMode: false
 - role: worker
-  image: kindest/node:latest

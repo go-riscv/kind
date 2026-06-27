@@ -11,7 +11,8 @@ else
   echo "Building release baseline/helper images from source"
   make -C "${ROOT_DIR}/pkg/release" release
 fi
-# pause and kind-derived images are source-derived/current-output by default; never silently trust prebuilt variants in PR validation.
+# etcd, pause, and kind-derived images are source-derived/current-output by default; never silently trust prebuilt variants in PR validation.
+make -C "${ROOT_DIR}/pkg/etcd" etcd
 make -C "${ROOT_DIR}/pkg/kubernetes" pause
 make -C "${ROOT_DIR}/pkg/kind" node-image
 printf "release image build elapsed_seconds=%s mode=%s no_apt_pr_ci=%s\n" "${SECONDS}" "${USE_PREBUILT_BASELINES}" "${NO_APT_PR_CI}"

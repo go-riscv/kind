@@ -109,6 +109,7 @@ jobs:
             - ghcr.io/go-riscv/setcap-riscv64:${{ github.ref_name }}
             - ghcr.io/go-riscv/distroless-iptables-riscv64:${{ github.ref_name }}
             - ghcr.io/go-riscv/pause:${{ github.ref_name }}
+            - ghcr.io/go-riscv/etcd:${{ github.ref_name }}
             - ghcr.io/go-riscv/local-path-helper:${{ github.ref_name }}
             - ghcr.io/go-riscv/local-path-provisioner:${{ github.ref_name }}
             - ghcr.io/go-riscv/base:${{ github.ref_name }}

@@ -1,6 +1,12 @@
 include ../common.mk
 
 VERSION=0.31.0
+KIND_RELEASE_TAG ?= v$(VERSION)
+KIND_DEFAULT_NODE_IMAGE ?= $(REGISTRY)/node:$(KIND_RELEASE_TAG)
+KIND_DEFAULT_PAUSE_IMAGE ?= $(REGISTRY)/pause:$(KIND_RELEASE_TAG)
+KIND_DEFAULT_KINDNETD_IMAGE ?= $(REGISTRY)/kindnetd:$(KIND_RELEASE_TAG)
+KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= $(REGISTRY)/local-path-provisioner:$(KIND_RELEASE_TAG)
+KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= $(REGISTRY)/local-path-helper:$(KIND_RELEASE_TAG)
 
 all: folders kind node-image
 
@@ -23,6 +29,21 @@ $(BUILD_DIR)/kind: folders
 	for patch in $(PATCH_FOLDER)/*; do \
 		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
 	done
+	@grep -q '^const Image = ' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
+	@sed -i 's|^const Image = .*|const Image = "$(KIND_DEFAULT_NODE_IMAGE)"|' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
+	@grep -q 'const Image = "$(KIND_DEFAULT_NODE_IMAGE)"' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
+	@grep -q 'sandbox_image = ' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml
+	@sed -i 's|sandbox_image = .*|sandbox_image = "$(KIND_DEFAULT_PAUSE_IMAGE)"|' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml
+	@grep -q 'sandbox_image = "$(KIND_DEFAULT_PAUSE_IMAGE)"' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml
+	@grep -q '^const kindnetdImage = ' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_cni.go
+	@sed -i 's|^const kindnetdImage = .*|const kindnetdImage = "$(KIND_DEFAULT_KINDNETD_IMAGE)"|' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_cni.go
+	@grep -q 'const kindnetdImage = "$(KIND_DEFAULT_KINDNETD_IMAGE)"' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_cni.go
+	@grep -q '^const storageProvisionerImage = ' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@sed -i 's|^const storageProvisionerImage = .*|const storageProvisionerImage = "$(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)"|' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@grep -q 'const storageProvisionerImage = "$(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)"' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@grep -q '^const storageHelperImage = ' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@sed -i 's|^const storageHelperImage = .*|const storageHelperImage = "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"|' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@grep -q 'const storageHelperImage = "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
 
 
 .PHONY: kind
@@ -35,6 +56,10 @@ kind: $(BUILD_DIR)/kind
 .PHONY: node-image
 node-image: kind $(BUILD_DIR)/kubernetes $(BUILD_DIR)/kind local-path-provisioner local-path-helper base kindnetd
 	# Build kind node image
+	docker tag $(PAUSE_RELEASE_IMAGE) $(KIND_DEFAULT_PAUSE_IMAGE)
+	docker tag $(REGISTRY)/local-path-provisioner:riscv64 $(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)
+	docker tag $(REGISTRY)/local-path-helper:riscv64 $(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)
+	docker tag $(REGISTRY)/kindnetd:riscv64 $(KIND_DEFAULT_KINDNETD_IMAGE)
 	KUBE_BUILD_PULL_LATEST_IMAGES=n \
 	KUBE_CROSS_IMAGE=kube-cross-riscv64 \
 	KUBE_CROSS_VERSION=$(KUBE_CROSS_VERSION) \
