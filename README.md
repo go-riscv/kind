@@ -27,7 +27,7 @@ The published node image reference is:
 
 The published `kind-linux-riscv64` binary is built with that GHCR node image as its default node image; override it with `--image` or a KinD config only when using a local/custom node image.
 
-Use `make dev-build` for local development. This profile uses `kindest/node:latest` and locally tagged RISC-V helper images. Tagged releases use the explicit release profile and require `RELEASE_TAG=vX.Y.Z`; every runtime image reference and the generated release config then use that same tag.
+Use `make dev-build` for local development. This profile uses `kindest/node:latest`, locally tagged RISC-V helper images, and `haproxy:riscv64` for multi-control-plane clusters. Tagged releases use the explicit release profile and require `RELEASE_TAG=vX.Y.Z`; every runtime image reference and the generated release config then use that same tag. KinD v0.32 uses Envoy upstream, but this RISC-V build deliberately retains HAProxy because the upstream Envoy image does not publish `linux/riscv64`.
 
 The release config can be used directly:
 

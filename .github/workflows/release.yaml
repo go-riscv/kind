@@ -123,6 +123,7 @@ jobs:
             - ghcr.io/go-riscv/local-path-provisioner:${{ github.ref_name }}
             - ghcr.io/go-riscv/base:${{ github.ref_name }}
             - ghcr.io/go-riscv/kindnetd:${{ github.ref_name }}
+            - ghcr.io/go-riscv/haproxy:${{ github.ref_name }}
             - ghcr.io/go-riscv/node:${{ github.ref_name }}
 
   release-consumer-contract:
@@ -151,7 +152,7 @@ jobs:
       - name: Verify clean consumer uses the released node image
         run: |
           set -euo pipefail
-          for image in node pause etcd kindnetd local-path-helper local-path-provisioner; do
+          for image in node pause etcd kindnetd local-path-helper local-path-provisioner haproxy; do
             docker manifest inspect "ghcr.io/go-riscv/${image}:${RELEASE_TAG}" >/dev/null
           done
           ./kind-linux-riscv64 delete cluster --name release-contract >/dev/null 2>&1 || true
@@ -166,15 +167,22 @@ jobs:
           grep -F "${NODE_IMAGE}" consumer-contract.log
           docker image inspect "${NODE_IMAGE}" >/dev/null
 
-      - name: Optional full clean-consumer cluster smoke test
-        if: ${{ vars.RUN_RELEASE_CLUSTER_SMOKE == '1' }}
+      - name: Verify the released HA cluster path
         run: |
           set -euo pipefail
-          trap './kind-linux-riscv64 delete cluster --name release-smoke >/dev/null 2>&1 || true' EXIT
+          sed 's/- role: worker/- role: control-plane\n- role: control-plane/' \
+            kind-config-linux-riscv64.yaml > kind-ha-linux-riscv64.yaml
+          trap './kind-linux-riscv64 delete cluster --name release-ha >/dev/null 2>&1 || true' EXIT
           ./kind-linux-riscv64 create cluster \
-            --name release-smoke \
-            --config kind-config-linux-riscv64.yaml \
+            --name release-ha \
+            --config kind-ha-linux-riscv64.yaml \
+            --image "${NODE_IMAGE}" \
             --wait 5m
+          test "$(docker inspect --format '{{.Config.Image}}' release-ha-external-load-balancer)" = \
+            "ghcr.io/go-riscv/haproxy:${RELEASE_TAG}"
+          docker exec release-ha-external-load-balancer \
+            haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg
           ./kubectl-linux-riscv64 \
-            --context kind-release-smoke \
+            --context kind-release-ha \
             wait --for=condition=Ready nodes --all --timeout=2m
+          ./kubectl-linux-riscv64 --context kind-release-ha get --raw=/readyz

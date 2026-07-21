@@ -37,6 +37,7 @@ if [[ "${PROFILE}" == "release" ]]; then
     "kindnetd=${REGISTRY}/kindnetd:${RELEASE_TAG}"
     "local-path-provisioner=${REGISTRY}/local-path-provisioner:${RELEASE_TAG}"
     "local-path-helper=${REGISTRY}/local-path-helper:${RELEASE_TAG}"
+    "loadbalancer=${REGISTRY}/haproxy:${RELEASE_TAG}"
   )
   expected_etcd_tag="${RELEASE_TAG}"
 else
@@ -46,6 +47,7 @@ else
     "kindnetd=kindnetd:riscv64"
     "local-path-provisioner=local-path-provisioner:riscv64"
     "local-path-helper=local-path-helper:riscv64"
+    "loadbalancer=haproxy:riscv64"
   )
   expected_etcd_tag="3.5-riscv64"
 fi
@@ -70,6 +72,13 @@ if [[ -d "${GENERATED_KIND_DIR}" ]]; then
   grep -Fxq "const storageHelperImage = \"${expected_refs[4]#local-path-helper=}\"" \
     "${GENERATED_KIND_DIR}/pkg/build/nodeimage/const_storage.go" ||
     fail "generated node source has the wrong local-path helper image"
+  grep -Fq "HAProxyImage = \"${expected_refs[5]#loadbalancer=}\"" \
+    "${GENERATED_KIND_DIR}/pkg/cluster/internal/loadbalancer/const.go" ||
+    fail "generated KinD source has the wrong RISC-V load-balancer image"
+  if grep -Fq 'var Image = "docker.io/envoyproxy/envoy:' \
+    "${GENERATED_KIND_DIR}/pkg/cluster/internal/loadbalancer/const.go"; then
+    fail "generated KinD source hard-codes Envoy as the architecture-selected image"
+  fi
 fi
 
 if [[ -f "${BINARY}" ]]; then
@@ -77,12 +86,16 @@ if [[ -f "${BINARY}" ]]; then
   if [[ "${PROFILE}" == "release" ]]; then
     strings "${BINARY}" | grep -aF "${expected_node}" >/dev/null ||
       fail "binary does not embed release node ref '${expected_node}'"
+    strings "${BINARY}" | grep -aF "${expected_refs[5]#loadbalancer=}" >/dev/null ||
+      fail "binary does not embed release load-balancer ref '${expected_refs[5]#loadbalancer=}'"
   else
     strings "${BINARY}" | grep -aF "${expected_node}" >/dev/null ||
       fail "binary does not embed local node ref '${expected_node}'"
     if strings "${BINARY}" | grep -aF "${REGISTRY}/node:v" >/dev/null; then
       fail "local binary unexpectedly embeds a released GHCR node ref"
     fi
+    strings "${BINARY}" | grep -aF "${expected_refs[5]#loadbalancer=}" >/dev/null ||
+      fail "binary does not embed local load-balancer ref '${expected_refs[5]#loadbalancer=}'"
   fi
 fi
 

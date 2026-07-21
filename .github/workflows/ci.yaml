@@ -102,6 +102,8 @@ jobs:
             dist/release/kind-config-linux-riscv64.yaml
             dist/release/SHA256SUMS
 
-      - name: Optional kind cluster smoke test
+      - name: Optional kind cluster smoke tests
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_smoke }}
-        run: hack/ci/kind-smoke.sh
+        run: |
+          hack/ci/kind-smoke.sh
+          hack/ci/kind-ha-smoke.sh
