@@ -19,6 +19,7 @@ jobs:
     env:
       REGISTRY: ghcr.io/go-riscv
       RELEASE_TAG: ${{ github.ref_name }}
+      KIND_BUILD_PROFILE: release
       GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
       K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
       BUILDX_CONTAINER_CACHE_ARGS: >-
@@ -81,8 +82,14 @@ jobs:
       - name: Stage release assets
         run: make release-checksums
 
+      - name: Verify release image contract
+        run: hack/ci/verify-kind-image-contract.sh release "${RELEASE_TAG}"
+
       - name: Retag and push release images
         run: make release-push-images
+
+      - name: Verify published release images
+        run: hack/release/verify-published-images.sh
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -93,6 +100,7 @@ jobs:
             dist/release/kubectl-linux-riscv64
             dist/release/kubeadm-linux-riscv64
             dist/release/k9s-linux-riscv64
+            dist/release/kind-config-linux-riscv64.yaml
             dist/release/SHA256SUMS
           body: |
             Published riscv64 release assets:
@@ -100,6 +108,7 @@ jobs:
             - kubectl-linux-riscv64
             - kubeadm-linux-riscv64
             - k9s-linux-riscv64
+            - kind-config-linux-riscv64.yaml
             - SHA256SUMS
 
             Published images:
@@ -115,3 +124,57 @@ jobs:
             - ghcr.io/go-riscv/base:${{ github.ref_name }}
             - ghcr.io/go-riscv/kindnetd:${{ github.ref_name }}
             - ghcr.io/go-riscv/node:${{ github.ref_name }}
+
+  release-consumer-contract:
+    needs: release
+    runs-on: ubuntu-24.04-riscv
+    permissions:
+      contents: read
+      packages: read
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      NODE_IMAGE: ghcr.io/go-riscv/node:${{ github.ref_name }}
+    steps:
+      - name: Download published release assets
+        run: |
+          set -euo pipefail
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern kind-linux-riscv64 \
+            --pattern kubectl-linux-riscv64 \
+            --pattern kind-config-linux-riscv64.yaml \
+            --pattern SHA256SUMS
+          chmod 0755 kind-linux-riscv64 kubectl-linux-riscv64
+          sha256sum --ignore-missing -c SHA256SUMS
+
+      - name: Verify clean consumer uses the released node image
+        run: |
+          set -euo pipefail
+          for image in node pause etcd kindnetd local-path-helper local-path-provisioner; do
+            docker manifest inspect "ghcr.io/go-riscv/${image}:${RELEASE_TAG}" >/dev/null
+          done
+          ./kind-linux-riscv64 delete cluster --name release-contract >/dev/null 2>&1 || true
+          docker image rm -f "${NODE_IMAGE}" >/dev/null 2>&1 || true
+          ! docker image inspect "${NODE_IMAGE}" >/dev/null 2>&1
+          set +e
+          timeout 3m ./kind-linux-riscv64 create cluster \
+            --name release-contract \
+            --wait 1s >consumer-contract.log 2>&1
+          set -e
+          ./kind-linux-riscv64 delete cluster --name release-contract >/dev/null 2>&1 || true
+          grep -F "${NODE_IMAGE}" consumer-contract.log
+          docker image inspect "${NODE_IMAGE}" >/dev/null
+
+      - name: Optional full clean-consumer cluster smoke test
+        if: ${{ vars.RUN_RELEASE_CLUSTER_SMOKE == '1' }}
+        run: |
+          set -euo pipefail
+          trap './kind-linux-riscv64 delete cluster --name release-smoke >/dev/null 2>&1 || true' EXIT
+          ./kind-linux-riscv64 create cluster \
+            --name release-smoke \
+            --config kind-config-linux-riscv64.yaml \
+            --wait 5m
+          ./kubectl-linux-riscv64 \
+            --context kind-release-smoke \
+            wait --for=condition=Ready nodes --all --timeout=2m

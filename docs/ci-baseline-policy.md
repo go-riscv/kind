@@ -5,6 +5,8 @@ PR CI has two modes:
 - `USE_PREBUILT_BASELINES=0` (default): rebuild release helper images from source. This remains the conservative fallback.
 - `USE_PREBUILT_BASELINES=1`: no-apt PR consumer mode. PR CI pulls trusted, digest-pinned baseline/helper images from `ghcr.io/go-riscv`, retags them to the local names expected by the existing Makefiles, then rebuilds source-derived/current-output images from the PR.
 
+Both modes use the `local` KinD build profile. The tagged release workflow uses the separate `release` profile, requires a `vX.Y.Z` release tag, and embeds that tag into the node, pause, kindnetd, and local-path image references.
+
 No-apt PR consumer mode is deterministic validation, not a security freshness guarantee. Freshness belongs to the baseline producer workflow and release workflow, where apt-based rebuilds happen explicitly.
 
 ## Stable baseline images trusted by digest in PR consumer mode

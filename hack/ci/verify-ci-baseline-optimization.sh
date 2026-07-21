@@ -16,6 +16,8 @@ require_file hack/release/baseline-images.env.example
 require_executable hack/release/verify-baseline-images.sh
 require_executable hack/release/verify-no-apt-pr-path.sh
 require_executable hack/release/build-images.sh
+require_executable hack/ci/verify-kind-image-contract.sh
+require_executable hack/release/verify-published-images.sh
 ! grep -RIn --exclude=verify-ci-baseline-optimization.sh "DEBIAN_VERSION=sid" Makefile pkg .github hack docs >/tmp/ci-baseline-sid.txt || fail "stale DEBIAN_VERSION=sid remains: $(cat /tmp/ci-baseline-sid.txt)"
 ! grep -RIn --exclude=verify-ci-baseline-optimization.sh "CONFIG=bookworm.*debian:.*trixie\|BASEIMAGE=debian:trixie-slim.*CONFIG=bookworm" pkg/release/Makefile docs >/tmp/ci-baseline-bookworm.txt || fail "unexplained bookworm/trixie baseline mismatch remains: $(cat /tmp/ci-baseline-bookworm.txt)"
 grep -q "DEBIAN_SUITE=trixie" pkg/common.mk || fail "pkg/common.mk must define DEBIAN_SUITE=trixie"
@@ -41,13 +43,16 @@ grep -q "USE_PREBUILT_BASELINES" hack/release/build-images.sh || fail "build-ima
 grep -q "verify-baseline-images.sh" hack/release/build-images.sh || fail "prebuilt baseline mode must verify baseline images"
 grep -q "make -C .*pkg/release.* release" hack/release/build-images.sh || fail "full source build fallback must remain"
 grep -q "pkg/kubernetes.* pause\|pkg/kubernetes\" pause" hack/release/build-images.sh || fail "build-images must still build source-derived pause"
-grep -q "pkg/kind.* node-image\|pkg/kind\" node-image" hack/release/build-images.sh || fail "build-images must still build source-derived node image"
+grep -q "kind_make node-image" hack/release/build-images.sh || fail "build-images must still build source-derived node image"
 grep -q "apt-get update\|apt update\|apt -y update" hack/release/verify-no-apt-pr-path.sh || fail "no-apt guard must check apt update commands"
 grep -q "workflow_dispatch" .github/workflows/baseline-images.yaml || fail "baseline workflow must support manual dispatch"
 grep -q "schedule:" .github/workflows/baseline-images.yaml || fail "baseline workflow must support scheduled freshness rebuilds"
 grep -q "packages: write" .github/workflows/baseline-images.yaml || fail "baseline workflow must be able to push GHCR images"
 grep -q "print-baseline-image-refs" .github/workflows/baseline-images.yaml || fail "baseline workflow must push baseline refs"
 grep -q "test -x dist/release/kind-linux-riscv64" .github/workflows/ci.yaml || fail "artifact verification removed from CI"
+grep -q "verify-kind-image-contract.sh local" .github/workflows/ci.yaml || fail "local image contract verification removed from CI"
+grep -q "verify-kind-image-contract.sh release" .github/workflows/release.yaml || fail "release image contract verification removed"
+grep -q "verify-published-images.sh" .github/workflows/release.yaml || fail "published image verification removed"
 grep -q "run_smoke" .github/workflows/ci.yaml || fail "smoke-test workflow_dispatch hook removed"
 grep -q "elapsed_seconds" hack/release/build-images.sh || fail "timing evidence hook missing"
 echo "PASS: CI baseline optimization contract is satisfied."

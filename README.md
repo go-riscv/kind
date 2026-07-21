@@ -16,6 +16,7 @@ Tagged releases in the form `vX.Y.Z` publish:
 - `kubectl-linux-riscv64`
 - `kubeadm-linux-riscv64`
 - `k9s-linux-riscv64`
+- `kind-config-linux-riscv64.yaml`
 - `SHA256SUMS`
 
 to the corresponding GitHub Release, and push the supporting container images plus the final node image to `ghcr.io/go-riscv`.
@@ -25,3 +26,11 @@ The published node image reference is:
 `ghcr.io/go-riscv/node:vX.Y.Z`
 
 The published `kind-linux-riscv64` binary is built with that GHCR node image as its default node image; override it with `--image` or a KinD config only when using a local/custom node image.
+
+Use `make dev-build` for local development. This profile uses `kindest/node:latest` and locally tagged RISC-V helper images. Tagged releases use the explicit release profile and require `RELEASE_TAG=vX.Y.Z`; every runtime image reference and the generated release config then use that same tag.
+
+The release config can be used directly:
+
+```sh
+./kind-linux-riscv64 create cluster --config kind-config-linux-riscv64.yaml
+```

@@ -18,3 +18,13 @@ while IFS=: read -r src asset; do
   cp "${BIN_DIR}/${src}" "${DIST_DIR}/${asset}"
   chmod 0755 "${DIST_DIR}/${asset}"
 done < <(release_asset_pairs)
+
+if [[ "${KIND_BUILD_PROFILE}" == "release" ]]; then
+  sed \
+    -e "s|@REGISTRY@|${REGISTRY}|g" \
+    -e "s|@RELEASE_TAG@|${RELEASE_TAG}|g" \
+    "${ROOT_DIR}/config/kind.release.yaml.tmpl" \
+    > "${DIST_DIR}/kind-config-linux-riscv64.yaml"
+else
+  cp "${ROOT_DIR}/config/kind.yaml" "${DIST_DIR}/kind-config-linux-riscv64.yaml"
+fi

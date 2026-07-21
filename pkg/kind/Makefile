@@ -1,17 +1,49 @@
 include ../common.mk
 
-VERSION=0.31.0
-KIND_RELEASE_TAG ?= v$(VERSION)
-KIND_DEFAULT_NODE_IMAGE ?= $(REGISTRY)/node:$(KIND_RELEASE_TAG)
-KIND_DEFAULT_PAUSE_IMAGE ?= $(REGISTRY)/pause:$(KIND_RELEASE_TAG)
-KIND_DEFAULT_KINDNETD_IMAGE ?= $(REGISTRY)/kindnetd:$(KIND_RELEASE_TAG)
-KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= $(REGISTRY)/local-path-provisioner:$(KIND_RELEASE_TAG)
-KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= $(REGISTRY)/local-path-helper:$(KIND_RELEASE_TAG)
+KIND_UPSTREAM_VERSION=0.31.0
+VERSION=$(KIND_UPSTREAM_VERSION)
+KIND_BUILD_PROFILE ?= local
+RELEASE_TAG ?=
+
+ifeq ($(KIND_BUILD_PROFILE),release)
+KIND_DEFAULT_NODE_IMAGE ?= $(REGISTRY)/node:$(RELEASE_TAG)
+KIND_DEFAULT_PAUSE_IMAGE ?= $(REGISTRY)/pause:$(RELEASE_TAG)
+KIND_DEFAULT_KINDNETD_IMAGE ?= $(REGISTRY)/kindnetd:$(RELEASE_TAG)
+KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= $(REGISTRY)/local-path-provisioner:$(RELEASE_TAG)
+KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= $(REGISTRY)/local-path-helper:$(RELEASE_TAG)
+else
+KIND_DEFAULT_NODE_IMAGE ?= kindest/node:latest
+KIND_DEFAULT_PAUSE_IMAGE ?= pause:riscv64
+KIND_DEFAULT_KINDNETD_IMAGE ?= kindnetd:riscv64
+KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= local-path-provisioner:riscv64
+KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= local-path-helper:riscv64
+endif
 
 all: folders kind node-image
 
+.PHONY: validate-kind-build-profile
+validate-kind-build-profile:
+	@if [ "$(KIND_BUILD_PROFILE)" != "local" ] && [ "$(KIND_BUILD_PROFILE)" != "release" ]; then \
+		echo "KIND_BUILD_PROFILE must be local or release, got: $(KIND_BUILD_PROFILE)" >&2; \
+		exit 1; \
+	fi
+	@if [ "$(KIND_BUILD_PROFILE)" = "release" ]; then \
+		printf '%s\n' "$(RELEASE_TAG)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { \
+			echo "RELEASE_TAG must match vX.Y.Z for release builds, got: $(RELEASE_TAG)" >&2; \
+			exit 1; \
+		}; \
+	fi
+
+.PHONY: print-kind-runtime-image-refs
+print-kind-runtime-image-refs: validate-kind-build-profile
+	@printf "node=%s\n" "$(KIND_DEFAULT_NODE_IMAGE)"
+	@printf "pause=%s\n" "$(KIND_DEFAULT_PAUSE_IMAGE)"
+	@printf "kindnetd=%s\n" "$(KIND_DEFAULT_KINDNETD_IMAGE)"
+	@printf "local-path-provisioner=%s\n" "$(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)"
+	@printf "local-path-helper=%s\n" "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"
+
 .PHONY: $(BUILD_DIR)/kind
-$(BUILD_DIR)/kind: folders
+$(BUILD_DIR)/kind: folders validate-kind-build-profile
 	cd $(BUILD_DIR) && \
 		if [ ! -d kind/.git ]; then \
 			git init kind; \

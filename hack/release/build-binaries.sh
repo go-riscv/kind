@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"
 
-make -C "${ROOT_DIR}/pkg/kind" kind
+kind_make kind
 make -C "${ROOT_DIR}/pkg/kubernetes" kubectl kubeadm
 
 if [[ ! -d "${K9S_SOURCE_DIR}" ]]; then

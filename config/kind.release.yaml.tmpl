@@ -1,0 +1,15 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    etcd:
+      local:
+        imageRepository: @REGISTRY@
+        imageTag: @RELEASE_TAG@
+    kubeProxy:
+      featureGates:
+        SupportIPVSProxyMode: false
+- role: worker

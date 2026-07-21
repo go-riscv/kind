@@ -8,6 +8,7 @@ DIST_DIR="${ROOT_DIR}/dist/release"
 
 REGISTRY="${REGISTRY:-ghcr.io/go-riscv}"
 RELEASE_TAG="${RELEASE_TAG:-}"
+KIND_BUILD_PROFILE="${KIND_BUILD_PROFILE:-local}"
 NODE_IMAGE_REPO="${NODE_IMAGE_REPO:-${REGISTRY}/node}"
 NODE_IMAGE_SOURCE="${NODE_IMAGE_SOURCE:-kindest/node:latest}"
 K9S_SOURCE_DIR="${K9S_SOURCE_DIR:-${ROOT_DIR}/../k9s}"
@@ -18,6 +19,16 @@ fi
 
 if [[ -n "${RELEASE_TAG}" && ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "RELEASE_TAG must match vX.Y.Z, got: ${RELEASE_TAG}" >&2
+  exit 1
+fi
+
+if [[ "${KIND_BUILD_PROFILE}" != "local" && "${KIND_BUILD_PROFILE}" != "release" ]]; then
+  echo "KIND_BUILD_PROFILE must be local or release, got: ${KIND_BUILD_PROFILE}" >&2
+  exit 1
+fi
+
+if [[ "${KIND_BUILD_PROFILE}" == "release" && -z "${RELEASE_TAG}" ]]; then
+  echo "RELEASE_TAG is required when KIND_BUILD_PROFILE=release" >&2
   exit 1
 fi
 
@@ -51,4 +62,13 @@ EOF
 
 release_asset_names() {
   release_asset_pairs | cut -d: -f2
+  echo "kind-config-linux-riscv64.yaml"
+}
+
+kind_make() {
+  make -C "${ROOT_DIR}/pkg/kind" \
+    REGISTRY="${REGISTRY}" \
+    KIND_BUILD_PROFILE="${KIND_BUILD_PROFILE}" \
+    RELEASE_TAG="${RELEASE_TAG}" \
+    "$@"
 }

@@ -40,34 +40,53 @@ folders:
 
 .PHONY: release-build-images
 release-build-images: folders
-	@$(PWD)/hack/release/build-images.sh
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/build-images.sh
 
 .PHONY: release-build-binaries
 release-build-binaries: folders
-	@$(PWD)/hack/release/build-binaries.sh
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/build-binaries.sh
+
+.PHONY: dev-build-images
+dev-build-images: folders
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/build-images.sh
+
+.PHONY: dev-build-binaries
+dev-build-binaries: folders
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/build-binaries.sh
+
+.PHONY: dev-build
+dev-build: dev-build-images dev-build-binaries
 
 .PHONY: release-stage-assets
 release-stage-assets: folders
-	@$(PWD)/hack/release/stage-assets.sh
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/stage-assets.sh
 
 .PHONY: release-checksums
 release-checksums: release-stage-assets
-	@$(PWD)/hack/release/write-checksums.sh
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/write-checksums.sh
+
+.PHONY: dev-stage-assets
+dev-stage-assets: folders
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/stage-assets.sh
+
+.PHONY: dev-checksums
+dev-checksums: dev-stage-assets
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/write-checksums.sh
 
 .PHONY: release-retag-images
 release-retag-images:
-	@$(PWD)/hack/release/retag-and-push-images.sh retag
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh retag
 
 .PHONY: release-push-images
 release-push-images:
-	@$(PWD)/hack/release/retag-and-push-images.sh publish
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh publish
 
 .PHONY: release-artifacts
 release-artifacts: release-build-binaries release-checksums
 
 .PHONY: release-publish
 release-publish: release-build-images release-artifacts
-	@$(PWD)/hack/release/retag-and-push-images.sh publish
+	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh publish
 
 .PHONY: verify-ci-baseline-optimization
 verify-ci-baseline-optimization:

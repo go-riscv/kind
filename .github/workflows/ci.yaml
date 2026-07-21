@@ -68,14 +68,14 @@ jobs:
       - name: Verify CI baseline optimization contract
         run: make verify-ci-baseline-optimization
 
-      - name: Build local release images
-        run: make release-build-images
+      - name: Build local development images
+        run: make dev-build-images
 
-      - name: Build local release binaries
-        run: make release-build-binaries
+      - name: Build local development binaries
+        run: make dev-build-binaries
 
-      - name: Stage and checksum release assets
-        run: make release-checksums
+      - name: Stage and checksum development artifacts
+        run: make dev-checksums
 
       - name: Verify release asset names
         run: |
@@ -84,7 +84,11 @@ jobs:
           test -x dist/release/kubectl-linux-riscv64
           test -x dist/release/kubeadm-linux-riscv64
           test -x dist/release/k9s-linux-riscv64
+          test -f dist/release/kind-config-linux-riscv64.yaml
           (cd dist/release && sha256sum -c SHA256SUMS)
+
+      - name: Verify local image contract
+        run: hack/ci/verify-kind-image-contract.sh local
 
       - name: Upload local release artifacts
         uses: actions/upload-artifact@v4
@@ -95,6 +99,7 @@ jobs:
             dist/release/kubectl-linux-riscv64
             dist/release/kubeadm-linux-riscv64
             dist/release/k9s-linux-riscv64
+            dist/release/kind-config-linux-riscv64.yaml
             dist/release/SHA256SUMS
 
       - name: Optional kind cluster smoke test
