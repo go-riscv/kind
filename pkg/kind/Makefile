@@ -1,6 +1,6 @@
 include ../common.mk
 
-KIND_UPSTREAM_VERSION=0.31.0
+KIND_UPSTREAM_VERSION=0.32.0
 VERSION=$(KIND_UPSTREAM_VERSION)
 KIND_BUILD_PROFILE ?= local
 RELEASE_TAG ?=
@@ -11,12 +11,14 @@ KIND_DEFAULT_PAUSE_IMAGE ?= $(REGISTRY)/pause:$(RELEASE_TAG)
 KIND_DEFAULT_KINDNETD_IMAGE ?= $(REGISTRY)/kindnetd:$(RELEASE_TAG)
 KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= $(REGISTRY)/local-path-provisioner:$(RELEASE_TAG)
 KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= $(REGISTRY)/local-path-helper:$(RELEASE_TAG)
+KIND_DEFAULT_LOADBALANCER_IMAGE ?= $(REGISTRY)/haproxy:$(RELEASE_TAG)
 else
 KIND_DEFAULT_NODE_IMAGE ?= kindest/node:latest
 KIND_DEFAULT_PAUSE_IMAGE ?= pause:riscv64
 KIND_DEFAULT_KINDNETD_IMAGE ?= kindnetd:riscv64
 KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= local-path-provisioner:riscv64
 KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= local-path-helper:riscv64
+KIND_DEFAULT_LOADBALANCER_IMAGE ?= haproxy:riscv64
 endif
 
 all: folders kind node-image
@@ -41,6 +43,7 @@ print-kind-runtime-image-refs: validate-kind-build-profile
 	@printf "kindnetd=%s\n" "$(KIND_DEFAULT_KINDNETD_IMAGE)"
 	@printf "local-path-provisioner=%s\n" "$(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)"
 	@printf "local-path-helper=%s\n" "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"
+	@printf "loadbalancer=%s\n" "$(KIND_DEFAULT_LOADBALANCER_IMAGE)"
 
 .PHONY: $(BUILD_DIR)/kind
 $(BUILD_DIR)/kind: folders validate-kind-build-profile
@@ -56,7 +59,8 @@ $(BUILD_DIR)/kind: folders validate-kind-build-profile
 		else \
 			git fetch --depth 1 origin tag v$(VERSION) && \
 			git checkout -f FETCH_HEAD; \
-		fi
+		fi && \
+		git clean -ffd
 	cd $(BUILD_DIR)/kind && \
 	for patch in $(PATCH_FOLDER)/*; do \
 		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
@@ -76,6 +80,9 @@ $(BUILD_DIR)/kind: folders validate-kind-build-profile
 	@grep -q '^const storageHelperImage = ' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
 	@sed -i 's|^const storageHelperImage = .*|const storageHelperImage = "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"|' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
 	@grep -q 'const storageHelperImage = "$(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)"' $(BUILD_DIR)/kind/pkg/build/nodeimage/const_storage.go
+	@grep -q 'HAProxyImage = ' $(BUILD_DIR)/kind/pkg/cluster/internal/loadbalancer/const.go
+	@sed -i 's|^\([[:space:]]*\)HAProxyImage = .*|\1HAProxyImage = "$(KIND_DEFAULT_LOADBALANCER_IMAGE)"|' $(BUILD_DIR)/kind/pkg/cluster/internal/loadbalancer/const.go
+	@grep -Fq 'HAProxyImage = "$(KIND_DEFAULT_LOADBALANCER_IMAGE)"' $(BUILD_DIR)/kind/pkg/cluster/internal/loadbalancer/const.go
 
 
 .PHONY: kind
@@ -86,7 +93,7 @@ kind: $(BUILD_DIR)/kind
 		cp bin/kind $(BIN_DIR)/kind
 
 .PHONY: node-image
-node-image: kind $(BUILD_DIR)/kubernetes $(BUILD_DIR)/kind local-path-provisioner local-path-helper base kindnetd
+node-image: kind $(BUILD_DIR)/kubernetes $(BUILD_DIR)/kind local-path-provisioner local-path-helper base kindnetd haproxy
 	# Build kind node image
 	docker tag $(PAUSE_RELEASE_IMAGE) $(KIND_DEFAULT_PAUSE_IMAGE)
 	docker tag $(REGISTRY)/local-path-provisioner:riscv64 $(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)
@@ -128,6 +135,13 @@ kindnetd:
 	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) KUBE_PROXY_BASE_IMAGE=$(REGISTRY)/distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) \
 make build
 	docker tag $(REGISTRY)/kindnetd:riscv64 kindnetd:riscv64
+
+.PHONY: haproxy
+haproxy: $(BUILD_DIR)/kind
+	# Build the RISC-V HAProxy load-balancer image restored by the KinD patch.
+	cd $(BUILD_DIR)/kind/images/haproxy && \
+	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+	docker tag $(REGISTRY)/haproxy:riscv64 haproxy:riscv64
 
 distclean:
 	rm -rf $(BUILD_DIR)
