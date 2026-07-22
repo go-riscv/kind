@@ -28,3 +28,7 @@ if [[ "${KIND_BUILD_PROFILE}" == "release" ]]; then
 else
   cp "${ROOT_DIR}/config/kind.yaml" "${DIST_DIR}/kind-config-linux-riscv64.yaml"
 fi
+
+install -m 0755 \
+  "${ROOT_DIR}/hack/ci/verify-published-release.sh" \
+  "${DIST_DIR}/verify-kind-release-riscv64.sh"

@@ -17,6 +17,7 @@ require_executable hack/release/verify-baseline-images.sh
 require_executable hack/release/verify-no-apt-pr-path.sh
 require_executable hack/release/build-images.sh
 require_executable hack/ci/verify-kind-image-contract.sh
+require_executable hack/ci/verify-published-release.sh
 require_executable hack/release/verify-published-images.sh
 ! grep -RIn --exclude=verify-ci-baseline-optimization.sh "DEBIAN_VERSION=sid" Makefile pkg .github hack docs >/tmp/ci-baseline-sid.txt || fail "stale DEBIAN_VERSION=sid remains: $(cat /tmp/ci-baseline-sid.txt)"
 ! grep -RIn --exclude=verify-ci-baseline-optimization.sh "CONFIG=bookworm.*debian:.*trixie\|BASEIMAGE=debian:trixie-slim.*CONFIG=bookworm" pkg/release/Makefile docs >/tmp/ci-baseline-bookworm.txt || fail "unexplained bookworm/trixie baseline mismatch remains: $(cat /tmp/ci-baseline-bookworm.txt)"
@@ -53,6 +54,9 @@ grep -q "test -x dist/release/kind-linux-riscv64" .github/workflows/ci.yaml || f
 grep -q "verify-kind-image-contract.sh local" .github/workflows/ci.yaml || fail "local image contract verification removed from CI"
 grep -q "verify-kind-image-contract.sh release" .github/workflows/release.yaml || fail "release image contract verification removed"
 grep -q "verify-published-images.sh" .github/workflows/release.yaml || fail "published image verification removed"
+grep -q "verify-kind-release-riscv64.sh" hack/release/env.sh || fail "release consumer verifier missing from asset list"
+grep -q "verify-published-release.sh" hack/release/stage-assets.sh || fail "release consumer verifier is not staged"
+grep -q "verify-kind-release-riscv64.sh" .github/workflows/release.yaml || fail "release consumer verifier is not published and executed"
 grep -q "run_smoke" .github/workflows/ci.yaml || fail "smoke-test workflow_dispatch hook removed"
 grep -q "elapsed_seconds" hack/release/build-images.sh || fail "timing evidence hook missing"
 echo "PASS: CI baseline optimization contract is satisfied."

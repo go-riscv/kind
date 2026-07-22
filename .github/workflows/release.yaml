@@ -101,6 +101,7 @@ jobs:
             dist/release/kubeadm-linux-riscv64
             dist/release/k9s-linux-riscv64
             dist/release/kind-config-linux-riscv64.yaml
+            dist/release/verify-kind-release-riscv64.sh
             dist/release/SHA256SUMS
           body: |
             Published riscv64 release assets:
@@ -109,6 +110,7 @@ jobs:
             - kubeadm-linux-riscv64
             - k9s-linux-riscv64
             - kind-config-linux-riscv64.yaml
+            - verify-kind-release-riscv64.sh
             - SHA256SUMS
 
             Published images:
@@ -145,44 +147,14 @@ jobs:
             --pattern kind-linux-riscv64 \
             --pattern kubectl-linux-riscv64 \
             --pattern kind-config-linux-riscv64.yaml \
+            --pattern verify-kind-release-riscv64.sh \
             --pattern SHA256SUMS
-          chmod 0755 kind-linux-riscv64 kubectl-linux-riscv64
+          chmod 0755 kind-linux-riscv64 kubectl-linux-riscv64 verify-kind-release-riscv64.sh
           sha256sum --ignore-missing -c SHA256SUMS
 
-      - name: Verify clean consumer uses the released node image
+      - name: Verify released HA cluster without pre-tagged image cache
         run: |
           set -euo pipefail
-          for image in node pause etcd kindnetd local-path-helper local-path-provisioner haproxy; do
-            docker manifest inspect "ghcr.io/go-riscv/${image}:${RELEASE_TAG}" >/dev/null
-          done
-          ./kind-linux-riscv64 delete cluster --name release-contract >/dev/null 2>&1 || true
-          docker image rm -f "${NODE_IMAGE}" >/dev/null 2>&1 || true
-          ! docker image inspect "${NODE_IMAGE}" >/dev/null 2>&1
-          set +e
-          timeout 3m ./kind-linux-riscv64 create cluster \
-            --name release-contract \
-            --wait 1s >consumer-contract.log 2>&1
-          set -e
-          ./kind-linux-riscv64 delete cluster --name release-contract >/dev/null 2>&1 || true
-          grep -F "${NODE_IMAGE}" consumer-contract.log
-          docker image inspect "${NODE_IMAGE}" >/dev/null
-
-      - name: Verify the released HA cluster path
-        run: |
-          set -euo pipefail
-          sed 's/- role: worker/- role: control-plane\n- role: control-plane/' \
-            kind-config-linux-riscv64.yaml > kind-ha-linux-riscv64.yaml
-          trap './kind-linux-riscv64 delete cluster --name release-ha >/dev/null 2>&1 || true' EXIT
-          ./kind-linux-riscv64 create cluster \
-            --name release-ha \
-            --config kind-ha-linux-riscv64.yaml \
-            --image "${NODE_IMAGE}" \
-            --wait 5m
-          test "$(docker inspect --format '{{.Config.Image}}' release-ha-external-load-balancer)" = \
-            "ghcr.io/go-riscv/haproxy:${RELEASE_TAG}"
-          docker exec release-ha-external-load-balancer \
-            haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg
-          ./kubectl-linux-riscv64 \
-            --context kind-release-ha \
-            wait --for=condition=Ready nodes --all --timeout=2m
-          ./kubectl-linux-riscv64 --context kind-release-ha get --raw=/readyz
+          RELEASE_SMOKE_MODE=ha \
+            CLUSTER_NAME=release-ha \
+            ./verify-kind-release-riscv64.sh "${RELEASE_TAG}"
