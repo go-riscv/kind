@@ -56,6 +56,7 @@ grep -q "verify-kind-image-contract.sh release" .github/workflows/release.yaml |
 grep -q "verify-published-images.sh" .github/workflows/release.yaml || fail "published image verification removed"
 grep -q "verify-kind-release-riscv64.sh" hack/release/env.sh || fail "release consumer verifier missing from asset list"
 grep -q "verify-published-release.sh" hack/release/stage-assets.sh || fail "release consumer verifier is not staged"
+grep -q "RELEASE_SMOKE_MODE=default" .github/workflows/release.yaml || fail "default-config release smoke test removed"
 grep -q "verify-kind-release-riscv64.sh" .github/workflows/release.yaml || fail "release consumer verifier is not published and executed"
 grep -q "run_smoke" .github/workflows/ci.yaml || fail "smoke-test workflow_dispatch hook removed"
 grep -q "elapsed_seconds" hack/release/build-images.sh || fail "timing evidence hook missing"

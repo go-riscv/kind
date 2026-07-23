@@ -1,0 +1,74 @@
+diff --git a/pkg/cluster/internal/kubeadm/config.go b/pkg/cluster/internal/kubeadm/config.go
+index 6cf1f9c..e4a0d68 100644
+--- a/pkg/cluster/internal/kubeadm/config.go
++++ b/pkg/cluster/internal/kubeadm/config.go
+@@ -29,11 +29,19 @@ import (
+ 	"sigs.k8s.io/kind/pkg/internal/version"
+ )
+ 
++const (
++	defaultEtcdImageRepository = ""
++	defaultEtcdImageTag        = ""
++)
++
+ // ConfigData is supplied to the kubeadm config template, with values populated
+ // by the cluster package
+ type ConfigData struct {
+ 	ClusterName       string
+ 	KubernetesVersion string
++	// EtcdImageRepository and EtcdImageTag override kubeadm's architecture-specific etcd default.
++	EtcdImageRepository string
++	EtcdImageTag        string
+ 	// The ControlPlaneEndpoint, that is the address of the external loadbalancer
+ 	// if defined or the bootstrap node
+ 	ControlPlaneEndpoint string
+@@ -127,6 +135,13 @@ func (c *ConfigData) Derive() {
+ 		c.DockerStableTag = strings.ReplaceAll(c.KubernetesVersion, "+", "_")
+ 	}
+ 
++	if c.EtcdImageRepository == "" {
++		c.EtcdImageRepository = defaultEtcdImageRepository
++	}
++	if c.EtcdImageTag == "" {
++		c.EtcdImageTag = defaultEtcdImageTag
++	}
++
+ 	// get the IP addresses family for defaulting components
+ 	c.IPv6 = c.IPFamily == config.IPv6Family
+ 
+@@ -190,6 +205,11 @@ metadata:
+   name: config
+ kubernetesVersion: {{.KubernetesVersion}}
+ clusterName: "{{.ClusterName}}"
++{{ if .EtcdImageRepository }}etcd:
++  local:
++    imageRepository: "{{ .EtcdImageRepository }}"
++    imageTag: "{{ .EtcdImageTag }}"
++{{ end -}}
+ {{ if .KubeadmFeatureGates}}featureGates:
+ {{ range $key, $value := .KubeadmFeatureGates }}
+   "{{ $key }}": {{ $value }}
+@@ -333,6 +353,11 @@ metadata:
+   name: config
+ kubernetesVersion: {{.KubernetesVersion}}
+ clusterName: "{{.ClusterName}}"
++{{ if .EtcdImageRepository }}etcd:
++  local:
++    imageRepository: "{{ .EtcdImageRepository }}"
++    imageTag: "{{ .EtcdImageTag }}"
++{{ end -}}
+ {{ if .KubeadmFeatureGates}}featureGates:
+ {{ range $key, $value := .KubeadmFeatureGates }}
+   "{{ $key }}": {{ $value }}
+@@ -488,6 +513,11 @@ metadata:
+   name: config
+ kubernetesVersion: {{.KubernetesVersion}}
+ clusterName: "{{.ClusterName}}"
++{{ if .EtcdImageRepository }}etcd:
++  local:
++    imageRepository: "{{ .EtcdImageRepository }}"
++    imageTag: "{{ .EtcdImageTag }}"
++{{ end -}}
+ {{ if .KubeadmFeatureGates}}featureGates:
+ {{ range $key, $value := .KubeadmFeatureGates }}
+   "{{ $key }}": {{ $value }}

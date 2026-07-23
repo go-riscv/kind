@@ -16,8 +16,8 @@ if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
-if [[ "${MODE}" != "single" && "${MODE}" != "ha" ]]; then
-  echo "RELEASE_SMOKE_MODE must be single or ha, got: ${MODE}" >&2
+if [[ "${MODE}" != "default" && "${MODE}" != "single" && "${MODE}" != "ha" ]]; then
+  echo "RELEASE_SMOKE_MODE must be default, single, or ha, got: ${MODE}" >&2
   exit 1
 fi
 
@@ -82,16 +82,19 @@ done
 # A release binary must not succeed by falling back to development-only tags.
 docker image rm -f kindest/node:latest haproxy:riscv64 >/dev/null 2>&1 || true
 
-cluster_config="${release_config}"
-if [[ "${MODE}" == "ha" ]]; then
+cluster_args=()
+if [[ "${MODE}" == "single" ]]; then
+  cluster_args=(--config "${release_config}")
+elif [[ "${MODE}" == "ha" ]]; then
   cluster_config="${ASSET_DIR}/kind-ha-linux-riscv64.yaml"
   sed 's/- role: worker/- role: control-plane\n- role: control-plane/' \
     "${release_config}" > "${cluster_config}"
+  cluster_args=(--config "${cluster_config}")
 fi
 
 "${kind_bin}" create cluster \
   --name "${CLUSTER_NAME}" \
-  --config "${cluster_config}" \
+  "${cluster_args[@]}" \
   --wait "${KIND_WAIT}"
 
 actual_node_image=$(docker inspect --format '{{.Config.Image}}' "${CLUSTER_NAME}-control-plane")

@@ -4,9 +4,11 @@ KIND_UPSTREAM_VERSION=0.32.0
 VERSION=$(KIND_UPSTREAM_VERSION)
 KIND_BUILD_PROFILE ?= local
 RELEASE_TAG ?=
+KIND_DEFAULT_ETCD_IMAGE_REPOSITORY ?= $(REGISTRY)
 
 ifeq ($(KIND_BUILD_PROFILE),release)
 KIND_DEFAULT_NODE_IMAGE ?= $(REGISTRY)/node:$(RELEASE_TAG)
+KIND_DEFAULT_ETCD_IMAGE_TAG ?= $(RELEASE_TAG)
 KIND_DEFAULT_PAUSE_IMAGE ?= $(REGISTRY)/pause:$(RELEASE_TAG)
 KIND_DEFAULT_KINDNETD_IMAGE ?= $(REGISTRY)/kindnetd:$(RELEASE_TAG)
 KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= $(REGISTRY)/local-path-provisioner:$(RELEASE_TAG)
@@ -14,6 +16,7 @@ KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE ?= $(REGISTRY)/local-path-helper:$(RELEASE_
 KIND_DEFAULT_LOADBALANCER_IMAGE ?= $(REGISTRY)/haproxy:$(RELEASE_TAG)
 else
 KIND_DEFAULT_NODE_IMAGE ?= kindest/node:latest
+KIND_DEFAULT_ETCD_IMAGE_TAG ?= $(ETCD_VERSION)-riscv64
 KIND_DEFAULT_PAUSE_IMAGE ?= pause:riscv64
 KIND_DEFAULT_KINDNETD_IMAGE ?= kindnetd:riscv64
 KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE ?= local-path-provisioner:riscv64
@@ -39,6 +42,7 @@ validate-kind-build-profile:
 .PHONY: print-kind-runtime-image-refs
 print-kind-runtime-image-refs: validate-kind-build-profile
 	@printf "node=%s\n" "$(KIND_DEFAULT_NODE_IMAGE)"
+	@printf "etcd=%s/etcd:%s\n" "$(KIND_DEFAULT_ETCD_IMAGE_REPOSITORY)" "$(KIND_DEFAULT_ETCD_IMAGE_TAG)"
 	@printf "pause=%s\n" "$(KIND_DEFAULT_PAUSE_IMAGE)"
 	@printf "kindnetd=%s\n" "$(KIND_DEFAULT_KINDNETD_IMAGE)"
 	@printf "local-path-provisioner=%s\n" "$(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)"
@@ -68,6 +72,12 @@ $(BUILD_DIR)/kind: folders validate-kind-build-profile
 	@grep -q '^const Image = ' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
 	@sed -i 's|^const Image = .*|const Image = "$(KIND_DEFAULT_NODE_IMAGE)"|' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
 	@grep -q 'const Image = "$(KIND_DEFAULT_NODE_IMAGE)"' $(BUILD_DIR)/kind/pkg/apis/config/defaults/image.go
+	@grep -q '^[[:space:]]*defaultEtcdImageRepository = ' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
+	@sed -i 's|^\([[:space:]]*\)defaultEtcdImageRepository = .*|\1defaultEtcdImageRepository = "$(KIND_DEFAULT_ETCD_IMAGE_REPOSITORY)"|' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
+	@grep -Fq 'defaultEtcdImageRepository = "$(KIND_DEFAULT_ETCD_IMAGE_REPOSITORY)"' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
+	@grep -q '^[[:space:]]*defaultEtcdImageTag ' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
+	@sed -i 's|^\([[:space:]]*\)defaultEtcdImageTag .*|\1defaultEtcdImageTag        = "$(KIND_DEFAULT_ETCD_IMAGE_TAG)"|' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
+	@grep -Fq 'defaultEtcdImageTag        = "$(KIND_DEFAULT_ETCD_IMAGE_TAG)"' $(BUILD_DIR)/kind/pkg/cluster/internal/kubeadm/config.go
 	@grep -q 'sandbox_image = ' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml
 	@sed -i 's|sandbox_image = .*|sandbox_image = "$(KIND_DEFAULT_PAUSE_IMAGE)"|' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml
 	@grep -q 'sandbox_image = "$(KIND_DEFAULT_PAUSE_IMAGE)"' $(BUILD_DIR)/kind/images/base/files/etc/containerd/config.toml

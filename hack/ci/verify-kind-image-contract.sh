@@ -33,6 +33,7 @@ mapfile -t refs < <(
 if [[ "${PROFILE}" == "release" ]]; then
   expected_refs=(
     "node=${REGISTRY}/node:${RELEASE_TAG}"
+    "etcd=${REGISTRY}/etcd:${RELEASE_TAG}"
     "pause=${REGISTRY}/pause:${RELEASE_TAG}"
     "kindnetd=${REGISTRY}/kindnetd:${RELEASE_TAG}"
     "local-path-provisioner=${REGISTRY}/local-path-provisioner:${RELEASE_TAG}"
@@ -43,6 +44,7 @@ if [[ "${PROFILE}" == "release" ]]; then
 else
   expected_refs=(
     "node=kindest/node:latest"
+    "etcd=${REGISTRY}/etcd:3.5-riscv64"
     "pause=pause:riscv64"
     "kindnetd=kindnetd:riscv64"
     "local-path-provisioner=local-path-provisioner:riscv64"
@@ -60,19 +62,25 @@ if [[ -d "${GENERATED_KIND_DIR}" ]]; then
   grep -Fxq "const Image = \"${expected_refs[0]#node=}\"" \
     "${GENERATED_KIND_DIR}/pkg/apis/config/defaults/image.go" ||
     fail "generated KinD source has the wrong default node image"
-  grep -Fq "sandbox_image = \"${expected_refs[1]#pause=}\"" \
+  grep -Fq "defaultEtcdImageRepository = \"${REGISTRY}\"" \
+    "${GENERATED_KIND_DIR}/pkg/cluster/internal/kubeadm/config.go" ||
+    fail "generated KinD source has the wrong default etcd repository"
+  grep -Fq "defaultEtcdImageTag        = \"${expected_etcd_tag}\"" \
+    "${GENERATED_KIND_DIR}/pkg/cluster/internal/kubeadm/config.go" ||
+    fail "generated KinD source has the wrong default etcd tag"
+  grep -Fq "sandbox_image = \"${expected_refs[2]#pause=}\"" \
     "${GENERATED_KIND_DIR}/images/base/files/etc/containerd/config.toml" ||
     fail "generated node source has the wrong pause image"
-  grep -Fxq "const kindnetdImage = \"${expected_refs[2]#kindnetd=}\"" \
+  grep -Fxq "const kindnetdImage = \"${expected_refs[3]#kindnetd=}\"" \
     "${GENERATED_KIND_DIR}/pkg/build/nodeimage/const_cni.go" ||
     fail "generated node source has the wrong kindnetd image"
-  grep -Fxq "const storageProvisionerImage = \"${expected_refs[3]#local-path-provisioner=}\"" \
+  grep -Fxq "const storageProvisionerImage = \"${expected_refs[4]#local-path-provisioner=}\"" \
     "${GENERATED_KIND_DIR}/pkg/build/nodeimage/const_storage.go" ||
     fail "generated node source has the wrong local-path provisioner image"
-  grep -Fxq "const storageHelperImage = \"${expected_refs[4]#local-path-helper=}\"" \
+  grep -Fxq "const storageHelperImage = \"${expected_refs[5]#local-path-helper=}\"" \
     "${GENERATED_KIND_DIR}/pkg/build/nodeimage/const_storage.go" ||
     fail "generated node source has the wrong local-path helper image"
-  grep -Fq "HAProxyImage = \"${expected_refs[5]#loadbalancer=}\"" \
+  grep -Fq "HAProxyImage = \"${expected_refs[6]#loadbalancer=}\"" \
     "${GENERATED_KIND_DIR}/pkg/cluster/internal/loadbalancer/const.go" ||
     fail "generated KinD source has the wrong RISC-V load-balancer image"
   if grep -Fq 'var Image = "docker.io/envoyproxy/envoy:' \
@@ -86,16 +94,16 @@ if [[ -f "${BINARY}" ]]; then
   if [[ "${PROFILE}" == "release" ]]; then
     strings "${BINARY}" | grep -aF "${expected_node}" >/dev/null ||
       fail "binary does not embed release node ref '${expected_node}'"
-    strings "${BINARY}" | grep -aF "${expected_refs[5]#loadbalancer=}" >/dev/null ||
-      fail "binary does not embed release load-balancer ref '${expected_refs[5]#loadbalancer=}'"
+    strings "${BINARY}" | grep -aF "${expected_refs[6]#loadbalancer=}" >/dev/null ||
+      fail "binary does not embed release load-balancer ref '${expected_refs[6]#loadbalancer=}'"
   else
     strings "${BINARY}" | grep -aF "${expected_node}" >/dev/null ||
       fail "binary does not embed local node ref '${expected_node}'"
     if strings "${BINARY}" | grep -aF "${REGISTRY}/node:v" >/dev/null; then
       fail "local binary unexpectedly embeds a released GHCR node ref"
     fi
-    strings "${BINARY}" | grep -aF "${expected_refs[5]#loadbalancer=}" >/dev/null ||
-      fail "binary does not embed local load-balancer ref '${expected_refs[5]#loadbalancer=}'"
+    strings "${BINARY}" | grep -aF "${expected_refs[6]#loadbalancer=}" >/dev/null ||
+      fail "binary does not embed local load-balancer ref '${expected_refs[6]#loadbalancer=}'"
   fi
 fi
 
