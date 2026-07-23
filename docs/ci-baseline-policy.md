@@ -5,9 +5,11 @@ PR CI has two modes:
 - `USE_PREBUILT_BASELINES=0` (default): rebuild release helper images from source. This remains the conservative fallback.
 - `USE_PREBUILT_BASELINES=1`: no-apt PR consumer mode. PR CI pulls trusted, digest-pinned baseline/helper images from `ghcr.io/go-riscv`, retags them to the local names expected by the existing Makefiles, then rebuilds source-derived/current-output images from the PR.
 
-Both modes use the `local` KinD build profile. The tagged release workflow uses the separate `release` profile, requires a `vX.Y.Z` release tag, and embeds that tag into the node, pause, kindnetd, and local-path image references.
+Both modes use the `local` KinD build profile. The tagged release workflow uses the separate `release` profile, requires a `vX.Y.Z` release tag, and embeds that tag into the node, pause, kindnetd, local-path, and RISC-V HAProxy image references.
 
 No-apt PR consumer mode is deterministic validation, not a security freshness guarantee. Freshness belongs to the baseline producer workflow and release workflow, where apt-based rebuilds happen explicitly.
+
+The `no-apt` name applies to provisioning trusted baseline images on the PR runner. Source-derived images still execute their upstream package-install steps inside Docker builds when their inputs change. HAProxy is intentionally in that category: it is rebuilt from the patched KinD image definition and may run `apt-get` inside its isolated build container.
 
 ## Stable baseline images trusted by digest in PR consumer mode
 
@@ -31,6 +33,7 @@ These are not trusted as generic PR baselines in the first pass:
 - `kindnetd`
 - `local-path-helper`
 - `local-path-provisioner`
+- `haproxy`
 - final kind node image
 
 They must be rebuilt when relevant source, patch, or version inputs change. In particular, a PR touching `pkg/kubernetes/**`, `pkg/kubernetes/patches/**`, `pkg/common.mk` Kubernetes/pause constants, or pause build wiring must not pass by silently consuming a stale prebuilt pause image.

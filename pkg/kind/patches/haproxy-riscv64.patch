@@ -1,0 +1,352 @@
+diff --git a/images/haproxy/Dockerfile b/images/haproxy/Dockerfile
+new file mode 100644
+--- /dev/null
++++ b/images/haproxy/Dockerfile
+@@ -0,0 +1,39 @@
++# Copyright 2019 The Kubernetes Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++# This image contains HAProxy and a minimal initial config. KinD rewrites the
++# config at runtime and signals HAProxy to reload.
++ARG BASE="debian:trixie-slim"
++FROM ${BASE} AS build
++
++RUN apt-get update && \
++    apt-get install -y --no-install-recommends bash haproxy procps && \
++    rm -rf /var/lib/apt/lists/*
++
++COPY --chmod=0755 stage-binary-and-deps.sh /usr/local/bin/
++
++ARG STAGE_DIR="/opt/stage"
++RUN mkdir -p "${STAGE_DIR}" && \
++    stage-binary-and-deps.sh haproxy "${STAGE_DIR}" && \
++    stage-binary-and-deps.sh cp "${STAGE_DIR}" && \
++    stage-binary-and-deps.sh mkdir "${STAGE_DIR}" && \
++    stage-binary-and-deps.sh kill "${STAGE_DIR}"
++
++FROM gcr.io/distroless/static-debian13
++ARG STAGE_DIR="/opt/stage"
++COPY --from=build "${STAGE_DIR}/" /
++COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
++
++STOPSIGNAL SIGUSR1
++ENTRYPOINT ["haproxy", "-W", "-db", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+diff --git a/images/haproxy/Makefile b/images/haproxy/Makefile
+new file mode 100644
+--- /dev/null
++++ b/images/haproxy/Makefile
+@@ -0,0 +1 @@
++include $(CURDIR)/../Makefile.common.in
+diff --git a/images/haproxy/haproxy.cfg b/images/haproxy/haproxy.cfg
+new file mode 100644
+--- /dev/null
++++ b/images/haproxy/haproxy.cfg
+@@ -0,0 +1,29 @@
++# Copyright 2019 The Kubernetes Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++# Minimal config used until KinD writes the cluster-specific configuration.
++global
++    maxconn 100000
++
++defaults
++    mode tcp
++    timeout connect 5s
++    timeout client 50s
++    timeout server 50s
++frontend controlPlane
++    bind 0.0.0.0:6443
++    mode tcp
++    default_backend kube-apiservers
++backend kube-apiservers
++    mode tcp
+diff --git a/images/haproxy/stage-binary-and-deps.sh b/images/haproxy/stage-binary-and-deps.sh
+new file mode 100644
+--- /dev/null
++++ b/images/haproxy/stage-binary-and-deps.sh
+@@ -0,0 +1,68 @@
++#!/usr/bin/env bash
++
++# Copyright 2021 The Kubernetes Authors.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++set -o errexit
++set -o nounset
++set -o pipefail
++
++file_to_package() {
++    dpkg-query --search "$(realpath "${1}")" | cut -d':' -f1
++}
++
++package_to_copyright() {
++    echo "/usr/share/doc/${1}/copyright"
++}
++
++stage_file() {
++    local from="${1}"
++    if [[ ${from} = /lib*/* ]]; then
++        from="/usr${from}"
++    fi
++    cp -a --parents "${from}" "${2}"
++
++    if [[ -L "${from}" ]]; then
++        stage_file "$(cd "$(dirname "${from}")"; realpath -s "$(readlink "${from}")")" "${2}"
++    fi
++
++    local package
++    package="$(file_to_package "${from}")"
++    if [[ -n "${package}" ]]; then
++        cp -a --parents "$(package_to_copyright "${package}")" "${2}"
++        dpkg -s "${package}" > "${2}/var/lib/dpkg/status.d/${package}"
++    fi
++}
++
++binary_to_libraries() {
++    ldd "${1}" \
++    | sed -E 's#.* => /#/#' \
++    | awk '{print $1}' \
++    | grep -v 'linux-vdso.so.1'
++}
++
++main() {
++    local binary="${1}"
++    local stage_dir="${2}/"
++    local binary_path
++    binary_path="$(type -P "${binary}")"
++
++    mkdir -p "${stage_dir}/var/lib/dpkg/status.d/"
++    stage_file "${binary_path}" "${stage_dir}"
++    while IFS= read -r dependency; do
++        stage_file "${dependency}" "${stage_dir}"
++    done < <(binary_to_libraries "${binary_path}")
++}
++
++main "$@"
+diff --git a/pkg/cluster/internal/create/actions/loadbalancer/loadbalancer.go b/pkg/cluster/internal/create/actions/loadbalancer/loadbalancer.go
+--- a/pkg/cluster/internal/create/actions/loadbalancer/loadbalancer.go
++++ b/pkg/cluster/internal/create/actions/loadbalancer/loadbalancer.go
+@@ -80,6 +80,21 @@ func (a *Action) Execute(ctx *actions.ActionContext) error {
+ 		IPv6:             ctx.Config.Networking.IPFamily == config.IPv6Family,
+ 	}
+
++	if loadbalancer.UsesHAProxy() {
++		proxyConfig, err := loadbalancer.Config(loadbalancerConfigdata, loadbalancer.HAProxyConfigTemplate)
++		if err != nil {
++			return errors.Wrap(err, "failed to generate HAProxy config data")
++		}
++		if err := nodeutils.WriteFile(loadBalancerNode, loadbalancer.HAProxyConfigPath, proxyConfig); err != nil {
++			return errors.Wrap(err, "failed to copy HAProxy config to node")
++		}
++		if err := loadBalancerNode.Command("kill", "-s", "HUP", "1").Run(); err != nil {
++			return errors.Wrap(err, "failed to reload HAProxy config")
++		}
++		ctx.Status.End(true)
++		return nil
++	}
++
+ 	// Generate the Dynamic Config strings
+ 	ldsConfig, err := loadbalancer.Config(loadbalancerConfigdata, loadbalancer.ProxyLDSConfigTemplate)
+ 	if err != nil {
+diff --git a/pkg/cluster/internal/loadbalancer/config.go b/pkg/cluster/internal/loadbalancer/config.go
+--- a/pkg/cluster/internal/loadbalancer/config.go
++++ b/pkg/cluster/internal/loadbalancer/config.go
+@@ -32,6 +32,42 @@ type ConfigData struct {
+ 	IPv6             bool
+ }
+
++// HAProxyConfigTemplate is the RISC-V load balancer config template.
++const HAProxyConfigTemplate = `# generated by kind
++global
++  log /dev/log local0
++  log /dev/log local1 notice
++  daemon
++  # limit memory usage to approximately 18 MB
++  maxconn 100000
++
++resolvers docker
++  parse-resolv-conf
++
++defaults
++  log global
++  mode tcp
++  option dontlognull
++  timeout connect 5000
++  timeout client 50000
++  timeout server 50000
++  # allow booting before backend DNS names resolve
++  default-server init-addr none
++
++frontend control-plane
++  bind *:{{ .ControlPlanePort }}
++  {{ if .IPv6 -}}
++  bind :::{{ .ControlPlanePort }};
++  {{- end }}
++  default_backend kube-apiservers
++
++backend kube-apiservers
++  option httpchk GET /healthz
++  {{range $server, $address := .BackendServers}}
++  server {{ $server }} {{ $address }} check check-ssl verify none resolvers docker resolve-prefer {{ if $.IPv6 -}} ipv6 {{- else -}} ipv4 {{- end }}
++  {{- end}}
++`
++
+ // DynamicFilesystemConfigTemplate holds the Envoy bootstrap configuration template
+ // for file-based dynamic xDS (CDS and LDS).
+ // https://www.envoyproxy.io/docs/envoy/latest/start/quick-start/configuration-dynamic-filesystem
+diff --git a/pkg/cluster/internal/loadbalancer/const.go b/pkg/cluster/internal/loadbalancer/const.go
+--- a/pkg/cluster/internal/loadbalancer/const.go
++++ b/pkg/cluster/internal/loadbalancer/const.go
+@@ -16,5 +16,28 @@ limitations under the License.
+
+ package loadbalancer
+
+-// Image defines the loadbalancer image:tag
+-const Image = "docker.io/envoyproxy/envoy:v1.36.2"
++import "runtime"
++
++const (
++	// EnvoyImage defines the upstream load balancer image for supported architectures.
++	EnvoyImage = "docker.io/envoyproxy/envoy:v1.36.2"
++	// HAProxyImage defines the RISC-V load balancer image.
++	HAProxyImage = "haproxy:riscv64"
++	// HAProxyConfigPath defines the path to the HAProxy configuration file.
++	HAProxyConfigPath = "/usr/local/etc/haproxy/haproxy.cfg"
++)
++
++// Image defines the architecture-specific load balancer image.
++var Image = imageForArchitecture(runtime.GOARCH)
++
++func imageForArchitecture(arch string) string {
++	if arch == "riscv64" {
++		return HAProxyImage
++	}
++	return EnvoyImage
++}
++
++// UsesHAProxy reports whether this build uses the RISC-V HAProxy path.
++func UsesHAProxy() bool {
++	return runtime.GOARCH == "riscv64"
++}
+diff --git a/pkg/cluster/internal/loadbalancer/haproxy_test.go b/pkg/cluster/internal/loadbalancer/haproxy_test.go
+new file mode 100644
+--- /dev/null
++++ b/pkg/cluster/internal/loadbalancer/haproxy_test.go
+@@ -0,0 +1,57 @@
++/*
++Copyright The Kubernetes Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package loadbalancer
++
++import (
++	"strings"
++	"testing"
++)
++
++func TestImageForArchitecture(t *testing.T) {
++	t.Parallel()
++
++	if got := imageForArchitecture("riscv64"); got != HAProxyImage {
++		t.Fatalf("imageForArchitecture(riscv64) = %q, want %q", got, HAProxyImage)
++	}
++	if got := imageForArchitecture("amd64"); got != EnvoyImage {
++		t.Fatalf("imageForArchitecture(amd64) = %q, want %q", got, EnvoyImage)
++	}
++}
++
++func TestHAProxyConfig(t *testing.T) {
++	t.Parallel()
++
++	config, err := Config(&ConfigData{
++		ControlPlanePort: 6443,
++		BackendServers: map[string]string{
++			"control-plane": "control-plane:6443",
++		},
++	}, HAProxyConfigTemplate)
++	if err != nil {
++		t.Fatalf("Config() unexpected error: %v", err)
++	}
++
++	for _, expected := range []string{
++		"bind *:6443",
++		"server control-plane control-plane:6443",
++		"resolve-prefer ipv4",
++	} {
++		if !strings.Contains(config, expected) {
++			t.Fatalf("HAProxy config does not contain %q:\n%s", expected, config)
++		}
++	}
++}
+diff --git a/pkg/cluster/internal/providers/docker/provision.go b/pkg/cluster/internal/providers/docker/provision.go
+--- a/pkg/cluster/internal/providers/docker/provision.go
++++ b/pkg/cluster/internal/providers/docker/provision.go
+@@ -284,7 +284,9 @@ func runArgsForLoadBalancer(cfg *config.Cluster, name string, args []string) ([]string, error) {
+ 	// finally, specify the image to run
+ 	args = append(args, loadbalancer.Image)
+
+-	args = append(args, loadbalancer.GenerateBootstrapCommand(cfg.Name, name)...)
++	if !loadbalancer.UsesHAProxy() {
++		args = append(args, loadbalancer.GenerateBootstrapCommand(cfg.Name, name)...)
++	}
+
+ 	return args, nil
+ }
+diff --git a/pkg/cluster/internal/providers/podman/provision.go b/pkg/cluster/internal/providers/podman/provision.go
+--- a/pkg/cluster/internal/providers/podman/provision.go
++++ b/pkg/cluster/internal/providers/podman/provision.go
+@@ -256,7 +256,9 @@ func runArgsForLoadBalancer(cfg *config.Cluster, name string, args []string) ([]string, error) {
+ 	_, image := sanitizeImage(loadbalancer.Image)
+ 	args = append(args, image)
+
+-	args = append(args, loadbalancer.GenerateBootstrapCommand(cfg.Name, name)...)
++	if !loadbalancer.UsesHAProxy() {
++		args = append(args, loadbalancer.GenerateBootstrapCommand(cfg.Name, name)...)
++	}
+
+ 	return args, nil
+ }

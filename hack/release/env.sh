@@ -63,6 +63,7 @@ EOF
 release_asset_names() {
   release_asset_pairs | cut -d: -f2
   echo "kind-config-linux-riscv64.yaml"
+  echo "verify-kind-release-riscv64.sh"
 }
 
 kind_make() {
