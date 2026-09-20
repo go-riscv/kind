@@ -8,9 +8,6 @@ nodes:
     etcd:
       local:
         imageRepository: ghcr.io/go-riscv
-        imageTag: 3.5-riscv64
-    kubeProxy:
-      featureGates:
-        SupportIPVSProxyMode: false
+        imageTag: 3.7.0-riscv64
 - role: control-plane
 - role: control-plane

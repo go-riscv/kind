@@ -1,7 +1,8 @@
 diff --git a/images/Makefile.common.in b/images/Makefile.common.in
+index c67ae50..a92ffce 100644
 --- a/images/Makefile.common.in
 +++ b/images/Makefile.common.in
-@@ -29,8 +29,8 @@ PLATFORMS?=linux/amd64,linux/arm64
+@@ -32,8 +32,8 @@ PLATFORMS?=linux/amd64,linux/arm64
  OUTPUT?=
  PROGRESS=auto
  EXTRA_BUILD_OPT?=
@@ -9,13 +10,14 @@ diff --git a/images/Makefile.common.in b/images/Makefile.common.in
 -	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --pull --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
 +build:
 +	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
-
+ 
  # push the cross built image
  push: OUTPUT=--push
 diff --git a/images/base/Dockerfile b/images/base/Dockerfile
+index 64da241..7f655b7 100644
 --- a/images/base/Dockerfile
 +++ b/images/base/Dockerfile
-@@ -107,10 +107,10 @@ COPY --chmod=0755 scripts/third_party/gimme/gimme /usr/local/bin/
+@@ -110,10 +110,10 @@ COPY --chmod=0755 scripts/third_party/gimme/gimme /usr/local/bin/
  COPY --chmod=0755 scripts/target-cc /usr/local/bin/
  # tools needed at build-time only
  # first ensure we can install packages for both architectures
@@ -30,9 +32,10 @@ diff --git a/images/base/Dockerfile b/images/base/Dockerfile
  ARG GO_VERSION
  RUN eval "$(gimme "${GO_VERSION}")" \
 diff --git a/images/base/scripts/target-cc b/images/base/scripts/target-cc
+index f8226e1..26ca66b 100755
 --- a/images/base/scripts/target-cc
 +++ b/images/base/scripts/target-cc
-@@ -21,6 +21,8 @@ case $TARGETARCH in
+@@ -23,6 +23,8 @@ case $TARGETARCH in
      echo -n 'aarch64-linux-gnu-gcc' ;;
    amd64)
      echo -n 'x86_64-linux-gnu-gcc' ;;
@@ -42,21 +45,24 @@ diff --git a/images/base/scripts/target-cc b/images/base/scripts/target-cc
      exit 1 ;;
  esac
 diff --git a/images/kindnetd/Dockerfile b/images/kindnetd/Dockerfile
+index 52483b6..eb7b3d7 100644
 --- a/images/kindnetd/Dockerfile
 +++ b/images/kindnetd/Dockerfile
-@@ -31,7 +31,7 @@ RUN eval "$(gimme "${GO_VERSION}")" \
+@@ -34,7 +34,7 @@ RUN eval "$(gimme "${GO_VERSION}")" \
      && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES ./cmd/kindnetd
-
+ 
  # build real kindnetd image
 -FROM registry.k8s.io/build-image/distroless-iptables:v0.8.7
-+FROM distroless-iptables-riscv64:v0.8.10
++FROM distroless-iptables-riscv64:v0.9.6
  COPY --from=0 --chown=root:root ./go/src/kindnetd /bin/kindnetd
  COPY --from=0 /_LICENSES/* /LICENSES/
  COPY --chmod=0644 files/LICENSES/* /LICENSES/*
 diff --git a/pkg/build/nodeimage/build.go b/pkg/build/nodeimage/build.go
+index c908b39..98cecd5 100644
 --- a/pkg/build/nodeimage/build.go
 +++ b/pkg/build/nodeimage/build.go
-@@ -181,6 +181,7 @@ func supportedArch(arch string) bool {
+@@ -184,6 +184,7 @@ func supportedArch(arch string) bool {
+ 	// currently we nominally support building node images for these
  	case "amd64":
  	case "arm64":
 +	case "riscv64":

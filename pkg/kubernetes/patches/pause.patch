@@ -3,13 +3,10 @@ diff --git a/build/pause/Makefile b/build/pause/Makefile
 +++ b/build/pause/Makefile
 @@ -40,3 +40,3 @@
  ALL_OS = linux windows
--ALL_ARCH.linux = amd64 arm arm64 ppc64le s390x
-+ALL_ARCH.linux = amd64 arm arm64 ppc64le riscv64 s390x
+-ALL_ARCH.linux = amd64 arm64 ppc64le s390x
++ALL_ARCH.linux = amd64 arm64 ppc64le riscv64 s390x
  ALL_OS_ARCH.linux = $(foreach arch, ${ALL_ARCH.linux}, linux-$(arch))
-@@ -72,5 +72,6 @@
- TRIPLE.linux-arm := arm-linux-gnueabihf
- TRIPLE.linux-arm64 := aarch64-linux-gnu
+@@ -73,2 +73,3 @@
  TRIPLE.linux-ppc64le := powerpc64le-linux-gnu
 +TRIPLE.linux-riscv64 := riscv64-linux-gnu
  TRIPLE.linux-s390x := s390x-linux-gnu
- TRIPLE := ${TRIPLE.${OS}-${ARCH}}

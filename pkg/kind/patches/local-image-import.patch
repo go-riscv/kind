@@ -5,7 +5,7 @@ index 60b048d..8d69e02 100644
 @@ -266,12 +266,36 @@ func (c *buildContext) prePullImagesAndWriteManifests(bits kube.Bits, parsedVers
  		}
  	}()
-
+ 
 +	loadLocalImage := func(image string) error {
 +		tmp, err := os.CreateTemp("", "kind-nodeimage-image-*.tar")
 +		if err != nil {

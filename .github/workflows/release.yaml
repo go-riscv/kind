@@ -79,6 +79,9 @@ jobs:
       - name: Build release binaries
         run: make release-build-binaries
 
+      - name: Verify KinD and Kubernetes release versions
+        run: hack/release/verify-version-pair.sh
+
       - name: Stage release assets
         run: make release-checksums
 

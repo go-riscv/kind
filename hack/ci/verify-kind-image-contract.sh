@@ -44,14 +44,14 @@ if [[ "${PROFILE}" == "release" ]]; then
 else
   expected_refs=(
     "node=kindest/node:latest"
-    "etcd=${REGISTRY}/etcd:3.5-riscv64"
+    "etcd=${REGISTRY}/etcd:3.7.0-riscv64"
     "pause=pause:riscv64"
     "kindnetd=kindnetd:riscv64"
     "local-path-provisioner=local-path-provisioner:riscv64"
     "local-path-helper=local-path-helper:riscv64"
     "loadbalancer=haproxy:riscv64"
   )
-  expected_etcd_tag="3.5-riscv64"
+  expected_etcd_tag="3.7.0-riscv64"
 fi
 
 [[ "${refs[*]}" == "${expected_refs[*]}" ]] ||

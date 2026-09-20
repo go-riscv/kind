@@ -7,13 +7,13 @@ REGISTRY=ghcr.io/go-riscv
 DEBIAN_SUITE=trixie
 DEBIAN_VERSION=13
 
-GOLANG_VERSION=1.25.10
+GOLANG_VERSION=1.26.7
 GO_TOOLCHAIN_VERSION=$(GOLANG_VERSION)
 GOLANG_IMAGE=$(REGISTRY)/golang:$(GOLANG_VERSION)-$(DEBIAN_SUITE)
 
 PROTOBUF_VERSION=34.1
 
-ETCD_VERSION=3.5
+ETCD_VERSION=3.7.0
 PROTOC_ZIP=protoc-$(PROTOBUF_VERSION)-linux-riscv_64.zip
 
 DEBIAN_BASE_VERSION=$(DEBIAN_SUITE)-v1.0.7
@@ -23,12 +23,12 @@ DISTROLESS_IMAGE=static-debian13
 
 DISTROLESS_IPTABLES_BASEIMAGE=debian:$(DEBIAN_SUITE)-slim
 
-KUBERNETES_VERSION=1.35
-KUBE_CROSS_VERSION=v1.35.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
+KUBERNETES_VERSION=1.37
+KUBE_CROSS_VERSION=v1.37.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
 KUBE_GORUNNER_VERSION=v2.4.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
-KUBE_PROXY_BASE_VERSION=v0.8.10
+KUBE_PROXY_BASE_VERSION=v0.9.6
 KUBE_SETCAP_VERSION=$(DEBIAN_SUITE)-v1.0.7
-PAUSE_VERSION=3.10.1-linux-riscv64
+PAUSE_VERSION=3.10.2-linux-riscv64
 KIND_IMAGE_TAG=riscv64
 
 KUBE_CROSS_RELEASE_IMAGE=$(REGISTRY)/kube-cross-riscv64:$(KUBE_CROSS_VERSION)
@@ -86,16 +86,10 @@ $(BUILD_DIR)/kubernetes: folders
 		fi && \
 		cd kubernetes && \
 		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/kubernetes/kubernetes.git) && \
-		if git rev-parse --verify HEAD >/dev/null 2>&1; then \
-			git fetch origin release-$(KUBERNETES_VERSION) && \
-			git reset --hard FETCH_HEAD; \
-		else \
-			git fetch --depth 1 origin release-$(KUBERNETES_VERSION) && \
-			git checkout -f FETCH_HEAD; \
-		fi && \
-		if ! git describe --tags --match='v*' --abbrev=14 HEAD >/dev/null 2>&1; then \
-			git tag -f v$(KUBERNETES_VERSION).0-rv64.0 HEAD; \
-		fi && \
+		git fetch --depth 1 origin tag v$(KUBERNETES_VERSION).0 && \
+		git reset --hard FETCH_HEAD && \
+		test "$$(git rev-parse HEAD)" = "$$(git rev-parse v$(KUBERNETES_VERSION).0^{commit})" && \
+		git clean -ffd && \
 	cd $(BUILD_DIR)/kubernetes && \
 	for patch in $(PWD)/../kubernetes/patches/*; do \
 		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \

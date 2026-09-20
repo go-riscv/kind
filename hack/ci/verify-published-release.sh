@@ -122,4 +122,12 @@ fi
   --for=condition=Ready nodes --all --timeout=5m
 "${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/readyz
 
+if [[ "${RELEASE_TAG}" == "v0.33.0" ]]; then
+  server_version=$("${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/version)
+  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0"' <<< "${server_version}"; then
+    echo "release cluster does not run Kubernetes v1.37.0: ${server_version}" >&2
+    exit 1
+  fi
+fi
+
 echo "PASS: ${RELEASE_TAG} ${MODE} release pulled registry-backed images and became ready."
