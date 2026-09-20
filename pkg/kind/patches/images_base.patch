@@ -44,6 +44,17 @@ index f8226e1..26ca66b 100755
    *)
      exit 1 ;;
  esac
+diff --git a/images/local-path-provisioner/Dockerfile b/images/local-path-provisioner/Dockerfile
+--- a/images/local-path-provisioner/Dockerfile
++++ b/images/local-path-provisioner/Dockerfile
+@@ -25,6 +25,5 @@ RUN eval "$(gimme "${GO_VERSION}")" \
+     && cd local-path-provisioner \
+     && git fetch && git checkout "${VERSION}" \
+-    && GOARCH=$TARGETARCH scripts/build \
+-    && mv bin/local-path-provisioner-$TARGETARCH /usr/local/bin/local-path-provisioner \
++    && CGO_ENABLED=0 GOARCH=$TARGETARCH go build -ldflags "-X main.VERSION=${VERSION} -extldflags -static -s -w" -o /usr/local/bin/local-path-provisioner \
+     && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest \
+     && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES .
 diff --git a/images/kindnetd/Dockerfile b/images/kindnetd/Dockerfile
 index 52483b6..eb7b3d7 100644
 --- a/images/kindnetd/Dockerfile
