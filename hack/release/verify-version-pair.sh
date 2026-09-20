@@ -10,6 +10,7 @@ if [[ "${actual_source}" != "${KUBERNETES_VERSION}" ]]; then
   echo "Kubernetes source is ${actual_source}, expected ${KUBERNETES_VERSION}" >&2
   exit 1
 fi
+expected_commit=$(git -C "${ROOT_DIR}/pkg/kubernetes/build/kubernetes" rev-parse HEAD)
 
 actual_kind=$("${ROOT_DIR}/bin/kind" version)
 if [[ "${actual_kind}" != "kind ${KIND_VERSION} "* ]]; then
@@ -23,7 +24,8 @@ for binary in kubectl kubeadm; do
   else
     version_json=$("${ROOT_DIR}/bin/${binary}" version -o json)
   fi
-  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0"' <<< "${version_json}"; then
+  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0(-dirty)?"' <<< "${version_json}" ||
+     ! grep -Eq "\"gitCommit\"[[:space:]]*:[[:space:]]*\"${expected_commit}\"" <<< "${version_json}"; then
     echo "${binary} does not report Kubernetes ${KUBERNETES_VERSION}: ${version_json}" >&2
     exit 1
   fi

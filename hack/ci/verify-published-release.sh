@@ -124,7 +124,8 @@ fi
 
 if [[ "${RELEASE_TAG}" == "v0.33.0" ]]; then
   server_version=$("${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/version)
-  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0"' <<< "${server_version}"; then
+  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0(-dirty)?"' <<< "${server_version}" ||
+     ! grep -Eq '"gitCommit"[[:space:]]*:[[:space:]]*"f54c212e3a2f75d674b717a9b29052b20b60aefc"' <<< "${server_version}"; then
     echo "release cluster does not run Kubernetes v1.37.0: ${server_version}" >&2
     exit 1
   fi
