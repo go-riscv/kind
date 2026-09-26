@@ -1,45 +1,51 @@
-# Introduction
+# KinD for RISC-V
 
-Welcome to the `k8s-riscv64` repository! This repository contains the necessary files and configurations to deploy Kubernetes on RISC-V 64-bit architecture.
+This repository ports [KinD](https://kind.sigs.k8s.io/) to `linux/riscv64`. The supported release pair is KinD v0.33.0 with Kubernetes v1.37.0. It builds the KinD and Kubernetes command line tools, the RISC-V node image, and the helper images required to create default and multi-control-plane clusters on RISC-V hosts.
 
-In this README, you will find detailed instructions on how to set up and use `k8s-riscv64` to run Kubernetes clusters on RISC-V 64-bit machines.
+## Release assets
 
-Let's get started!
-
-# Usage
-
-## Releases
-
-Tagged releases in the form `vX.Y.Z` publish:
+The future release contract contains exactly six assets:
 
 - `kind-linux-riscv64`
 - `kubectl-linux-riscv64`
 - `kubeadm-linux-riscv64`
-- `k9s-linux-riscv64`
 - `kind-config-linux-riscv64.yaml`
 - `verify-kind-release-riscv64.sh`
 - `SHA256SUMS`
 
-to the corresponding GitHub Release, and push the supporting container images plus the final node image to `ghcr.io/go-riscv`.
+The already-published v0.33.0 release remains unchanged with seven assets; it also contains `k9s-linux-riscv64`. That historical artifact is not part of the current build or future release contract.
 
-The published node image reference is:
+The release also publishes these images to `ghcr.io/go-riscv`: `kube-cross-riscv64`, `debian-base-riscv64`, `go-runner-riscv64`, `setcap-riscv64`, `distroless-iptables-riscv64`, `pause`, `etcd`, `local-path-helper`, `local-path-provisioner`, `base`, `kindnetd`, `haproxy`, and `node`. The released KinD binary defaults to `ghcr.io/go-riscv/node:vX.Y.Z`. HAProxy remains the RISC-V load balancer because the upstream Envoy image does not publish `linux/riscv64`.
 
-`ghcr.io/go-riscv/node:vX.Y.Z`
+## Development
 
-The published `kind-linux-riscv64` binary is built with that GHCR node image as its default node image; override it with `--image` or a KinD config only when using a local/custom node image.
-
-Use `make dev-build` for local development. This profile uses `kindest/node:latest`, locally tagged RISC-V helper images, and `haproxy:riscv64` for multi-control-plane clusters. Tagged releases use the explicit release profile and require `RELEASE_TAG=vX.Y.Z`; every runtime image reference and the generated release config then use that same tag. The v0.33.0 release builds Kubernetes v1.37.0, matching KinD's default Kubernetes version. KinD v0.33 uses Envoy upstream, but this RISC-V build deliberately retains HAProxy because the upstream Envoy image does not publish `linux/riscv64`.
-
-The release config can be used directly:
+Run the repository contract tests before building:
 
 ```sh
-./kind-linux-riscv64 create cluster --config kind-config-linux-riscv64.yaml
+hack/ci/test-release-identity.sh
+hack/ci/test-build-orchestration.sh
+hack/ci/test-minimum-surface.sh
 ```
 
-To verify a release on a RISC-V host without `gh`, download the verifier and let it fetch the checksummed assets. It removes only the exact release and development tags before creating the cluster, then verifies that the running node and HAProxy images resolve to GHCR repository digests:
+Build local images and binaries, then stage checksummed artifacts:
+
+```sh
+make dev-build
+make dev-checksums
+```
+
+Local builds use `kindest/node:latest` as the output image name and local RISC-V helper image tags. The CI workflow uses GitHub Actions BuildKit cache import and export settings for the release helper images.
+
+## Release workflow
+
+Tags matching the canonical release version run the release workflow. The current source contract builds KinD v0.33.0 with Kubernetes v1.37.0 at its pinned release commit, verifies the binary and image contracts, publishes the versioned GHCR images and six future-contract assets, then creates default and HA clusters from downloaded release artifacts.
+
+To verify a published release independently on a RISC-V host:
 
 ```sh
 curl -fLO https://github.com/go-riscv/kind/releases/download/vX.Y.Z/verify-kind-release-riscv64.sh
 chmod 0755 verify-kind-release-riscv64.sh
 DOWNLOAD_RELEASE_ASSETS=1 ./verify-kind-release-riscv64.sh vX.Y.Z
 ```
+
+The verifier checks `SHA256SUMS`, uses the released KinD configuration, and confirms that the running node and HAProxy images resolve to the expected GHCR repositories.

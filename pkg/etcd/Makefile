@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := all
 include ../common.mk
 
 VERSION=$(ETCD_VERSION)
@@ -26,9 +27,8 @@ etcd: folders
 		git apply --check "$$patch" && git apply "$$patch" || exit 1; \
 	done
 	cd $(BUILD_DIR)/etcd && \
-		make && \
+			$(MAKE) && \
 		TAG=$(REGISTRY)/etcd BINARYDIR=./bin ./scripts/build-docker.sh $(VERSION)
 
 distclean:
 	rm -rf $(BUILD_DIR)
-	docker rmi $(IMAGE)

@@ -21,12 +21,9 @@ jobs:
     runs-on: ubuntu-24.04-riscv
     env:
       REGISTRY: ghcr.io/go-riscv
-      K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
       BUILDX_CONTAINER_CACHE_ARGS: >-
         --cache-from type=gha,scope=release-images-riscv64
         --cache-to type=gha,scope=release-images-riscv64,mode=max
-      USE_PREBUILT_BASELINES: ${{ vars.USE_PREBUILT_BASELINES }}
-      NO_APT_PR_CI: ${{ vars.USE_PREBUILT_BASELINES }}
     steps:
       - name: Checkout repository
         run: |
@@ -40,14 +37,9 @@ jobs:
           fi
           git checkout --force FETCH_HEAD
 
-      - name: Checkout k9s source
-        run: |
-          set -euo pipefail
-          git clone --depth=1 --branch v0.50.18 https://github.com/derailed/k9s.git _deps/k9s
-
       - name: Restore Go build caches
         continue-on-error: true
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -65,8 +57,12 @@ jobs:
           git --version
           go version
 
-      - name: Verify CI baseline optimization contract
-        run: make verify-ci-baseline-optimization
+      - name: Verify repository contracts
+        run: |
+          hack/ci/test-release-identity.sh
+          hack/ci/test-build-orchestration.sh
+          hack/ci/test-minimum-surface.sh
+          hack/ci/test-upstream-patches.sh
 
       - name: Build local development images
         run: make dev-build-images
@@ -83,23 +79,23 @@ jobs:
           test -x dist/release/kind-linux-riscv64
           test -x dist/release/kubectl-linux-riscv64
           test -x dist/release/kubeadm-linux-riscv64
-          test -x dist/release/k9s-linux-riscv64
           test -f dist/release/kind-config-linux-riscv64.yaml
+          test -x dist/release/verify-kind-release-riscv64.sh
           (cd dist/release && sha256sum -c SHA256SUMS)
 
       - name: Verify local image contract
         run: hack/ci/verify-kind-image-contract.sh local
 
       - name: Upload local release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: riscv64-release-assets
           path: |
             dist/release/kind-linux-riscv64
             dist/release/kubectl-linux-riscv64
             dist/release/kubeadm-linux-riscv64
-            dist/release/k9s-linux-riscv64
             dist/release/kind-config-linux-riscv64.yaml
+            dist/release/verify-kind-release-riscv64.sh
             dist/release/SHA256SUMS
 
       - name: Optional kind cluster smoke tests

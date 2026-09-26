@@ -10,6 +10,8 @@ ASSET_DIR="${ASSET_DIR:-${PWD}}"
 CLUSTER_NAME="${CLUSTER_NAME:-release-consumer}"
 KIND_WAIT="${KIND_WAIT:-10m}"
 DOWNLOAD_RELEASE_ASSETS="${DOWNLOAD_RELEASE_ASSETS:-0}"
+EXPECTED_KUBERNETES_VERSION="@EXPECTED_KUBERNETES_VERSION@"
+EXPECTED_KUBERNETES_COMMIT="@EXPECTED_KUBERNETES_COMMIT@"
 
 if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "usage: $0 vX.Y.Z" >&2
@@ -18,6 +20,12 @@ fi
 
 if [[ "${MODE}" != "default" && "${MODE}" != "single" && "${MODE}" != "ha" ]]; then
   echo "RELEASE_SMOKE_MODE must be default, single, or ha, got: ${MODE}" >&2
+  exit 1
+fi
+
+if [[ ! "${EXPECTED_KUBERNETES_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ||
+      ! "${EXPECTED_KUBERNETES_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "invalid staged Kubernetes provenance: ${EXPECTED_KUBERNETES_VERSION} at ${EXPECTED_KUBERNETES_COMMIT}" >&2
   exit 1
 fi
 
@@ -122,13 +130,12 @@ fi
   --for=condition=Ready nodes --all --timeout=5m
 "${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/readyz
 
-if [[ "${RELEASE_TAG}" == "v0.33.0" ]]; then
-  server_version=$("${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/version)
-  if ! grep -Eq '"gitVersion"[[:space:]]*:[[:space:]]*"v1\.37\.0(-dirty)?"' <<< "${server_version}" ||
-     ! grep -Eq '"gitCommit"[[:space:]]*:[[:space:]]*"f54c212e3a2f75d674b717a9b29052b20b60aefc"' <<< "${server_version}"; then
-    echo "release cluster does not run Kubernetes v1.37.0: ${server_version}" >&2
-    exit 1
-  fi
+server_version=$("${kubectl_bin}" --context "kind-${CLUSTER_NAME}" get --raw=/version)
+expected_version_pattern=${EXPECTED_KUBERNETES_VERSION//./\\.}
+if ! grep -Eq "\"gitVersion\"[[:space:]]*:[[:space:]]*\"${expected_version_pattern}\"" <<< "${server_version}" ||
+   ! grep -Eq "\"gitCommit\"[[:space:]]*:[[:space:]]*\"${EXPECTED_KUBERNETES_COMMIT}\"" <<< "${server_version}"; then
+  echo "release cluster does not run Kubernetes ${EXPECTED_KUBERNETES_VERSION} at ${EXPECTED_KUBERNETES_COMMIT}: ${server_version}" >&2
+  exit 1
 fi
 
 echo "PASS: ${RELEASE_TAG} ${MODE} release pulled registry-backed images and became ready."

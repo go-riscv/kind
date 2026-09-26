@@ -4,17 +4,19 @@ BIN_DIR=$(PWD)/../../bin
 PATCH_FOLDER=$(PWD)/patches
 REGISTRY=ghcr.io/go-riscv
 
+# Canonical supported upstream release pair. Keep release identity here so
+# Makefiles and shell tooling query the same values.
+KIND_UPSTREAM_VERSION=0.33.0
+KUBERNETES_VERSION=1.37.0
+KUBERNETES_COMMIT=f54c212e3a2f75d674b717a9b29052b20b60aefc
+KUBERNETES_MAJOR=$(word 1,$(subst ., ,$(KUBERNETES_VERSION)))
+KUBERNETES_MINOR=$(word 2,$(subst ., ,$(KUBERNETES_VERSION)))
+
 DEBIAN_SUITE=trixie
-DEBIAN_VERSION=13
 
 GOLANG_VERSION=1.26.7
 GO_TOOLCHAIN_VERSION=$(GOLANG_VERSION)
-GOLANG_IMAGE=$(REGISTRY)/golang:$(GOLANG_VERSION)-$(DEBIAN_SUITE)
-
-PROTOBUF_VERSION=34.1
-
 ETCD_VERSION=3.7.0
-PROTOC_ZIP=protoc-$(PROTOBUF_VERSION)-linux-riscv_64.zip
 
 DEBIAN_BASE_VERSION=$(DEBIAN_SUITE)-v1.0.7
 
@@ -23,13 +25,13 @@ DISTROLESS_IMAGE=static-debian13
 
 DISTROLESS_IPTABLES_BASEIMAGE=debian:$(DEBIAN_SUITE)-slim
 
-KUBERNETES_VERSION=1.37
-KUBE_CROSS_VERSION=v1.37.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
+KUBE_CROSS_VERSION=v$(KUBERNETES_VERSION)-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
 KUBE_GORUNNER_VERSION=v2.4.0-go$(GO_TOOLCHAIN_VERSION)-$(DEBIAN_SUITE).0
 KUBE_PROXY_BASE_VERSION=v0.9.6
 KUBE_SETCAP_VERSION=$(DEBIAN_SUITE)-v1.0.7
 PAUSE_VERSION=3.10.2-linux-riscv64
 KIND_IMAGE_TAG=riscv64
+KUBE_VERSION_FILE=$(BUILD_DIR)/kubernetes/.kind-kube-version-defs
 
 KUBE_CROSS_RELEASE_IMAGE=$(REGISTRY)/kube-cross-riscv64:$(KUBE_CROSS_VERSION)
 DEBIAN_BASE_RELEASE_IMAGE=$(REGISTRY)/debian-base-riscv64:$(DEBIAN_BASE_VERSION)
@@ -62,16 +64,12 @@ RELEASE_IMAGE_REFS= \
 print-release-image-refs:
 	@for image in $(RELEASE_IMAGE_REFS); do printf "%s\n" "$$image"; done
 
-BASELINE_IMAGE_REFS= \
-	$(KUBE_CROSS_RELEASE_IMAGE) \
-	$(DEBIAN_BASE_RELEASE_IMAGE) \
-	$(KUBE_GORUNNER_RELEASE_IMAGE) \
-	$(KUBE_SETCAP_RELEASE_IMAGE) \
-	$(KUBE_PROXY_BASE_RELEASE_IMAGE)
-
-.PHONY: print-baseline-image-refs
-print-baseline-image-refs:
-	@for image in $(BASELINE_IMAGE_REFS); do printf "%s\n" "$$image"; done
+.PHONY: print-release-metadata
+print-release-metadata:
+	@printf "KIND_UPSTREAM_VERSION=%s\n" "$(KIND_UPSTREAM_VERSION)"
+	@printf "KIND_RELEASE_TAG=v%s\n" "$(KIND_UPSTREAM_VERSION)"
+	@printf "KUBERNETES_VERSION=v%s\n" "$(KUBERNETES_VERSION)"
+	@printf "KUBERNETES_COMMIT=%s\n" "$(KUBERNETES_COMMIT)"
 
 .PHONY: folders
 folders:
@@ -86,11 +84,15 @@ $(BUILD_DIR)/kubernetes: folders
 		fi && \
 		cd kubernetes && \
 		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/kubernetes/kubernetes.git) && \
-		git fetch --depth 1 origin tag v$(KUBERNETES_VERSION).0 && \
+		git fetch --depth 1 origin tag v$(KUBERNETES_VERSION) && \
 		git reset --hard FETCH_HEAD && \
-		test "$$(git rev-parse HEAD)" = "$$(git rev-parse v$(KUBERNETES_VERSION).0^{commit})" && \
+		test "$$(git rev-parse HEAD)" = "$(KUBERNETES_COMMIT)" && \
+		test "$$(git rev-parse v$(KUBERNETES_VERSION)^{commit})" = "$(KUBERNETES_COMMIT)" && \
 		git clean -ffd && \
 	cd $(BUILD_DIR)/kubernetes && \
 	for patch in $(PWD)/../kubernetes/patches/*; do \
 		patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
-	done
+	done && \
+	printf "KUBE_GIT_COMMIT='%s'\nKUBE_GIT_TREE_STATE='clean'\nKUBE_GIT_VERSION='v%s'\nKUBE_GIT_MAJOR='%s'\nKUBE_GIT_MINOR='%s'\n" \
+		"$(KUBERNETES_COMMIT)" "$(KUBERNETES_VERSION)" "$(KUBERNETES_MAJOR)" "$(KUBERNETES_MINOR)" \
+		> "$(KUBE_VERSION_FILE)"

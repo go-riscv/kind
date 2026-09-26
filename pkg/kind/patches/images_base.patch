@@ -1,82 +1,51 @@
 diff --git a/images/Makefile.common.in b/images/Makefile.common.in
-index c67ae50..a92ffce 100644
 --- a/images/Makefile.common.in
 +++ b/images/Makefile.common.in
-@@ -32,8 +32,8 @@ PLATFORMS?=linux/amd64,linux/arm64
- OUTPUT?=
- PROGRESS=auto
- EXTRA_BUILD_OPT?=
+@@ -35,2 +35,2 @@
 -build: ensure-buildx
 -	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --pull --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
 +build:
 +	docker buildx build $(if $(PLATFORMS),--platform=$(PLATFORMS),) $(OUTPUT) --progress=$(PROGRESS) -t ${IMAGE} --build-arg GO_VERSION=$(GO_VERSION) $(EXTRA_BUILD_OPT) .
- 
- # push the cross built image
- push: OUTPUT=--push
 diff --git a/images/base/Dockerfile b/images/base/Dockerfile
-index 64da241..7f655b7 100644
 --- a/images/base/Dockerfile
 +++ b/images/base/Dockerfile
-@@ -110,10 +110,10 @@ COPY --chmod=0755 scripts/third_party/gimme/gimme /usr/local/bin/
- COPY --chmod=0755 scripts/target-cc /usr/local/bin/
- # tools needed at build-time only
- # first ensure we can install packages for both architectures
+@@ -113 +113 @@
 -RUN dpkg --add-architecture arm64 && dpkg --add-architecture amd64 \
 +RUN dpkg --add-architecture arm64 && dpkg --add-architecture amd64 && dpkg --add-architecture riscv64 \
-     && clean-install bash ca-certificates curl git make pkg-config \
+@@ -115,2 +115,2 @@
 -    build-essential crossbuild-essential-amd64 crossbuild-essential-arm64 \
 -    libseccomp-dev:amd64 libseccomp-dev:arm64
 +    build-essential crossbuild-essential-amd64 crossbuild-essential-arm64 crossbuild-essential-riscv64 \
 +    libseccomp-dev:amd64 libseccomp-dev:arm64 libseccomp-dev:riscv64
- # set by makefile to .go-version
- ARG GO_VERSION
- RUN eval "$(gimme "${GO_VERSION}")" \
+@@ -121 +121 @@
+-    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest
++    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@v1.6.0
 diff --git a/images/base/scripts/target-cc b/images/base/scripts/target-cc
-index f8226e1..26ca66b 100755
 --- a/images/base/scripts/target-cc
 +++ b/images/base/scripts/target-cc
-@@ -23,6 +23,8 @@ case $TARGETARCH in
-     echo -n 'aarch64-linux-gnu-gcc' ;;
-   amd64)
-     echo -n 'x86_64-linux-gnu-gcc' ;;
+@@ -25,0 +26,2 @@
 +  riscv64)
 +    echo -n 'gcc' ;;
-   *)
-     exit 1 ;;
- esac
 diff --git a/images/local-path-provisioner/Dockerfile b/images/local-path-provisioner/Dockerfile
 --- a/images/local-path-provisioner/Dockerfile
 +++ b/images/local-path-provisioner/Dockerfile
-@@ -25,6 +25,5 @@ RUN eval "$(gimme "${GO_VERSION}")" \
-     && cd local-path-provisioner \
-     && git fetch && git checkout "${VERSION}" \
+@@ -27,3 +27,2 @@
 -    && GOARCH=$TARGETARCH scripts/build \
 -    && mv bin/local-path-provisioner-$TARGETARCH /usr/local/bin/local-path-provisioner \
+-    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest \
 +    && CGO_ENABLED=0 GOARCH=$TARGETARCH go build -ldflags "-X main.VERSION=${VERSION} -extldflags -static -s -w" -o /usr/local/bin/local-path-provisioner \
-     && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest \
-     && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES .
++    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@v1.6.0 \
 diff --git a/images/kindnetd/Dockerfile b/images/kindnetd/Dockerfile
-index 52483b6..eb7b3d7 100644
 --- a/images/kindnetd/Dockerfile
 +++ b/images/kindnetd/Dockerfile
-@@ -34,7 +34,7 @@ RUN eval "$(gimme "${GO_VERSION}")" \
-     && GOARCH=$TARGETARCH go-licenses save --save_path=/_LICENSES ./cmd/kindnetd
- 
- # build real kindnetd image
+@@ -27 +27 @@
+-    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@latest
++    && GOBIN=/usr/local/bin go install github.com/google/go-licenses@v1.6.0
+@@ -37 +37 @@
 -FROM registry.k8s.io/build-image/distroless-iptables:v0.8.7
 +FROM distroless-iptables-riscv64:v0.9.6
- COPY --from=0 --chown=root:root ./go/src/kindnetd /bin/kindnetd
- COPY --from=0 /_LICENSES/* /LICENSES/
- COPY --chmod=0644 files/LICENSES/* /LICENSES/*
 diff --git a/pkg/build/nodeimage/build.go b/pkg/build/nodeimage/build.go
-index c908b39..98cecd5 100644
 --- a/pkg/build/nodeimage/build.go
 +++ b/pkg/build/nodeimage/build.go
-@@ -184,6 +184,7 @@ func supportedArch(arch string) bool {
- 	// currently we nominally support building node images for these
- 	case "amd64":
- 	case "arm64":
+@@ -186,0 +187 @@
 +	case "riscv64":
- 	}
- 	return true
- }

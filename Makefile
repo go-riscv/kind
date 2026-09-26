@@ -1,36 +1,34 @@
 
-DEBIAN_SUITE?=trixie
-DEBIAN_VERSION?=13
 PWD=$(shell pwd)
 BIN_DIR=$(PWD)/bin
 DIST_DIR=$(PWD)/dist/release
-PATCH_FOLDER=$(PWD)/patches
-REGISTRY=ghcr.io/go-riscv
+
+BUILD_IMAGES_SCRIPT ?= $(PWD)/hack/release/build-images.sh
+BUILD_BINARIES_SCRIPT ?= $(PWD)/hack/release/build-binaries.sh
+STAGE_ASSETS_SCRIPT ?= $(PWD)/hack/release/stage-assets.sh
+WRITE_CHECKSUMS_SCRIPT ?= $(PWD)/hack/release/write-checksums.sh
+PUBLISH_IMAGES_SCRIPT ?= $(PWD)/hack/release/retag-and-push-images.sh
 
 PKG_DIR := $(PWD)/pkg
-PKG_LIST := $(notdir $(wildcard $(PWD)/pkg/*))
 PKG_LIST := release etcd kubernetes kind
-OPTIONAL_PKG_LIST := golang protobuf
 
 .PHONY: all
 all: folders
-	@for folder in $(PKG_LIST); do \
-		if [ -d $(PKG_DIR)/"$$folder" ]; then \
-			cd $(PKG_DIR)/"$$folder" && make all; \
-		fi \
-	done
+	+$(MAKE) -C $(PKG_DIR)/release all
+	+$(MAKE) -C $(PKG_DIR)/etcd all
+	+$(MAKE) -C $(PKG_DIR)/kubernetes all
+	+$(MAKE) -C $(PKG_DIR)/kind all
 
-.PHONY: $(PKG_LIST) $(OPTIONAL_PKG_LIST)
-$(PKG_LIST) $(OPTIONAL_PKG_LIST):
-	@cd $(PKG_DIR)/$@ && make all
+.PHONY: $(PKG_LIST)
+$(PKG_LIST):
+	+$(MAKE) -C $(PKG_DIR)/$@ all
 
 .PHONY: distclean
 distclean:
-	@for folder in $(PKG_LIST); do \
-		if [ -d $(PKG_DIR)/"$$folder" ]; then \
-			cd $(PKG_DIR)/"$$folder" && make distclean; \
-		fi \
-	done
+	+$(MAKE) -C $(PKG_DIR)/release distclean
+	+$(MAKE) -C $(PKG_DIR)/etcd distclean
+	+$(MAKE) -C $(PKG_DIR)/kubernetes distclean
+	+$(MAKE) -C $(PKG_DIR)/kind distclean
 	rm -rf $(BIN_DIR)
 
 .PHONY: folders
@@ -40,73 +38,56 @@ folders:
 
 .PHONY: release-build-images
 release-build-images: folders
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/build-images.sh
+	@KIND_BUILD_PROFILE=release $(BUILD_IMAGES_SCRIPT)
 
 .PHONY: release-build-binaries
 release-build-binaries: folders
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/build-binaries.sh
+	@KIND_BUILD_PROFILE=release $(BUILD_BINARIES_SCRIPT)
 
 .PHONY: dev-build-images
 dev-build-images: folders
-	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/build-images.sh
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(BUILD_IMAGES_SCRIPT)
 
 .PHONY: dev-build-binaries
 dev-build-binaries: folders
-	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/build-binaries.sh
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(BUILD_BINARIES_SCRIPT)
 
 .PHONY: dev-build
-dev-build: dev-build-images dev-build-binaries
+dev-build: folders
+	+$(MAKE) dev-build-images
+	+$(MAKE) dev-build-binaries
 
 .PHONY: release-stage-assets
 release-stage-assets: folders
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/stage-assets.sh
+	@KIND_BUILD_PROFILE=release $(STAGE_ASSETS_SCRIPT)
 
 .PHONY: release-checksums
 release-checksums: release-stage-assets
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/write-checksums.sh
+	@KIND_BUILD_PROFILE=release $(WRITE_CHECKSUMS_SCRIPT)
 
 .PHONY: dev-stage-assets
 dev-stage-assets: folders
-	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/stage-assets.sh
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(STAGE_ASSETS_SCRIPT)
 
 .PHONY: dev-checksums
 dev-checksums: dev-stage-assets
-	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(PWD)/hack/release/write-checksums.sh
+	@KIND_BUILD_PROFILE=local RELEASE_TAG= $(WRITE_CHECKSUMS_SCRIPT)
 
 .PHONY: release-retag-images
 release-retag-images:
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh retag
+	@KIND_BUILD_PROFILE=release $(PUBLISH_IMAGES_SCRIPT) retag
 
 .PHONY: release-push-images
 release-push-images:
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh publish
+	@KIND_BUILD_PROFILE=release $(PUBLISH_IMAGES_SCRIPT) publish
 
 .PHONY: release-artifacts
-release-artifacts: release-build-binaries release-checksums
+release-artifacts: folders
+	+$(MAKE) release-build-binaries
+	+$(MAKE) release-checksums
 
 .PHONY: release-publish
-release-publish: release-build-images release-artifacts
-	@KIND_BUILD_PROFILE=release $(PWD)/hack/release/retag-and-push-images.sh publish
-
-.PHONY: verify-ci-baseline-optimization
-verify-ci-baseline-optimization:
-	@$(PWD)/hack/ci/verify-ci-baseline-optimization.sh
-
-####################################################
-# kind cluster and app deployment			 	   #
-####################################################
-.PHONY: kind-cluster
-kind-cluster:
-	# build kind cluster
-	$(BIN_DIR)/kind create cluster --retain --config config/kind.yaml --image kindest/node:latest
-	$(BIN_DIR)/kind load docker-image $(REGISTRY)/local-path-helper:riscv64
-	$(BIN_DIR)/kind load docker-image $(REGISTRY)/local-path-provisioner:riscv64
-
-.PHONY: app-deploy
-app-deploy:
-	# deploy alpine echo server, client and service
-	$(BIN_DIR)/kubectl apply -f config/alpine.yaml
-
-.PHONY: kind-cluster-delete
-kind-cluster-delete:
-	$(BIN_DIR)/kind delete cluster
+release-publish: folders
+	+$(MAKE) release-build-images
+	+$(MAKE) release-artifacts
+	@KIND_BUILD_PROFILE=release $(PUBLISH_IMAGES_SCRIPT) publish

@@ -3,15 +3,36 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-BIN_DIR="${ROOT_DIR}/bin"
-DIST_DIR="${ROOT_DIR}/dist/release"
+BIN_DIR="${BIN_DIR:-${ROOT_DIR}/bin}"
+DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist/release}"
+KUBERNETES_SOURCE_DIR="${KUBERNETES_SOURCE_DIR:-${ROOT_DIR}/pkg/kubernetes/build/kubernetes}"
 
 REGISTRY="${REGISTRY:-ghcr.io/go-riscv}"
 RELEASE_TAG="${RELEASE_TAG:-}"
 KIND_BUILD_PROFILE="${KIND_BUILD_PROFILE:-local}"
 NODE_IMAGE_REPO="${NODE_IMAGE_REPO:-${REGISTRY}/node}"
 NODE_IMAGE_SOURCE="${NODE_IMAGE_SOURCE:-kindest/node:latest}"
-K9S_SOURCE_DIR="${K9S_SOURCE_DIR:-${ROOT_DIR}/../k9s}"
+NODE_IMAGE_ID_FILE="${NODE_IMAGE_ID_FILE:-${ROOT_DIR}/pkg/kind/build/node-image.id}"
+
+KIND_UPSTREAM_VERSION=""
+KIND_RELEASE_TAG=""
+KUBERNETES_VERSION=""
+KUBERNETES_COMMIT=""
+release_metadata=$(make -s -f "${ROOT_DIR}/pkg/common.mk" print-release-metadata)
+while IFS='=' read -r key value; do
+  case "${key}" in
+    KIND_UPSTREAM_VERSION) KIND_UPSTREAM_VERSION="${value}" ;;
+    KIND_RELEASE_TAG) KIND_RELEASE_TAG="${value}" ;;
+    KUBERNETES_VERSION) KUBERNETES_VERSION="${value}" ;;
+    KUBERNETES_COMMIT) KUBERNETES_COMMIT="${value}" ;;
+  esac
+done <<< "${release_metadata}"
+
+if [[ -z "${KIND_UPSTREAM_VERSION}" || -z "${KIND_RELEASE_TAG}" || -z "${KUBERNETES_VERSION}" ||
+      ! "${KUBERNETES_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "Unable to query canonical release metadata from pkg/common.mk" >&2
+  exit 1
+fi
 
 if [[ -z "${RELEASE_TAG}" && "${GITHUB_REF_NAME:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   RELEASE_TAG="${GITHUB_REF_NAME}"
@@ -32,23 +53,17 @@ if [[ "${KIND_BUILD_PROFILE}" == "release" && -z "${RELEASE_TAG}" ]]; then
   exit 1
 fi
 
-mkdir -p "${BIN_DIR}" "${DIST_DIR}"
+if [[ "${KIND_BUILD_PROFILE}" == "release" && "${RELEASE_TAG}" != "${KIND_RELEASE_TAG}" ]]; then
+  echo "RELEASE_TAG must equal canonical KinD tag ${KIND_RELEASE_TAG}, got: ${RELEASE_TAG}" >&2
+  exit 1
+fi
 
 kind_source_image() {
-  if docker image inspect "${NODE_IMAGE_SOURCE}" >/dev/null 2>&1; then
-    echo "${NODE_IMAGE_SOURCE}"
-    return 0
-  fi
-
-  local candidate
-  candidate=$(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep '^kindest/node:' | head -n1 || true)
-  if [[ -n "${candidate}" ]]; then
-    echo "${candidate}"
-    return 0
-  fi
-
-  echo "Unable to find the built kind node image; checked ${NODE_IMAGE_SOURCE} and kindest/node:*" >&2
-  return 1
+  docker image inspect "${NODE_IMAGE_SOURCE}" >/dev/null 2>&1 || {
+    echo "Missing exact built node image: ${NODE_IMAGE_SOURCE}" >&2
+    return 1
+  }
+  echo "${NODE_IMAGE_SOURCE}"
 }
 
 release_asset_pairs() {
@@ -56,7 +71,6 @@ release_asset_pairs() {
 kind:kind-linux-riscv64
 kubectl:kubectl-linux-riscv64
 kubeadm:kubeadm-linux-riscv64
-k9s:k9s-linux-riscv64
 EOF
 }
 
@@ -71,5 +85,6 @@ kind_make() {
     REGISTRY="${REGISTRY}" \
     KIND_BUILD_PROFILE="${KIND_BUILD_PROFILE}" \
     RELEASE_TAG="${RELEASE_TAG}" \
+    NODE_IMAGE_SOURCE="${NODE_IMAGE_SOURCE}" \
     "$@"
 }

@@ -1,9 +1,11 @@
+.DEFAULT_GOAL := all
+.NOTPARALLEL:
 include ../common.mk
 
-KIND_UPSTREAM_VERSION=0.33.0
 VERSION=$(KIND_UPSTREAM_VERSION)
 KIND_BUILD_PROFILE ?= local
 RELEASE_TAG ?=
+NODE_IMAGE_SOURCE ?= kindest/node:latest
 KIND_DEFAULT_ETCD_IMAGE_REPOSITORY ?= $(REGISTRY)
 
 ifeq ($(KIND_BUILD_PROFILE),release)
@@ -33,8 +35,8 @@ validate-kind-build-profile:
 		exit 1; \
 	fi
 	@if [ "$(KIND_BUILD_PROFILE)" = "release" ]; then \
-		printf '%s\n' "$(RELEASE_TAG)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { \
-			echo "RELEASE_TAG must match vX.Y.Z for release builds, got: $(RELEASE_TAG)" >&2; \
+		test "$(RELEASE_TAG)" = "v$(KIND_UPSTREAM_VERSION)" || { \
+			echo "RELEASE_TAG must equal canonical KinD tag v$(KIND_UPSTREAM_VERSION), got: $(RELEASE_TAG)" >&2; \
 			exit 1; \
 		}; \
 	fi
@@ -99,7 +101,7 @@ $(BUILD_DIR)/kind: folders validate-kind-build-profile
 kind: $(BUILD_DIR)/kind
 	# build kind binary
 	cd $(BUILD_DIR)/kind && \
-		make build && \
+			$(MAKE) build && \
 		cp bin/kind $(BIN_DIR)/kind
 
 .PHONY: node-image
@@ -109,50 +111,56 @@ node-image: kind $(BUILD_DIR)/kubernetes $(BUILD_DIR)/kind local-path-provisione
 	docker tag $(REGISTRY)/local-path-provisioner:riscv64 $(KIND_DEFAULT_LOCAL_PATH_PROVISIONER_IMAGE)
 	docker tag $(REGISTRY)/local-path-helper:riscv64 $(KIND_DEFAULT_LOCAL_PATH_HELPER_IMAGE)
 	docker tag $(REGISTRY)/kindnetd:riscv64 $(KIND_DEFAULT_KINDNETD_IMAGE)
+	rm -f "$(BUILD_DIR)/node-image.id" "$(BUILD_DIR)/node-image.id.tmp"
 	KUBE_BUILD_PULL_LATEST_IMAGES=n \
 	KUBE_CROSS_IMAGE=kube-cross-riscv64 \
 	KUBE_CROSS_VERSION=$(KUBE_CROSS_VERSION) \
 	KUBE_GORUNNER_IMAGE=go-runner-riscv64:$(KUBE_GORUNNER_VERSION) \
 	KUBE_PROXY_BASE_IMAGE=distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) \
 	KUBE_BUILD_SETCAP_IMAGE=setcap-riscv64:$(KUBE_SETCAP_VERSION) \
-	$(BIN_DIR)/kind build node-image --base-image base:riscv64 $(BUILD_DIR)/kubernetes
+	KUBE_GIT_VERSION_FILE=$(KUBE_VERSION_FILE) \
+	$(BIN_DIR)/kind build node-image --image "$(NODE_IMAGE_SOURCE)" --base-image base:riscv64 $(BUILD_DIR)/kubernetes
+	@node_image_id="$$(docker image inspect --format '{{.Id}}' "$(NODE_IMAGE_SOURCE)")" && \
+		test -n "$$node_image_id" && \
+		printf '%s\n' "$$node_image_id" > "$(BUILD_DIR)/node-image.id.tmp" && \
+		mv "$(BUILD_DIR)/node-image.id.tmp" "$(BUILD_DIR)/node-image.id"
 
 .PHONY: local-path-provisioner
-local-path-provisioner:
+local-path-provisioner: $(BUILD_DIR)/kind
 	# Build local-path-provisioner image
 	cd $(BUILD_DIR)/kind/images/local-path-provisioner && \
-	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+		PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/local-path-provisioner:riscv64 local-path-provisioner:riscv64
 
 .PHONY: local-path-helper
-local-path-helper:
+local-path-helper: $(BUILD_DIR)/kind
 	# Build local-path-helper image
 	cd $(BUILD_DIR)/kind/images/local-path-helper && \
-	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+		PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/local-path-helper:riscv64 local-path-helper:riscv64
 
 .PHONY: base
-base:
+base: $(BUILD_DIR)/kind
 	# Build kind base image
 	cd $(BUILD_DIR)/kind/images/base && \
-	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+		PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/base:riscv64 base:riscv64
 
 .PHONY: kindnetd
-kindnetd:
+kindnetd: $(BUILD_DIR)/kind
 	# Build kindnetd image
 	cd $(BUILD_DIR)/kind/images/kindnetd && \
 	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) KUBE_PROXY_BASE_IMAGE=$(REGISTRY)/distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) \
-make build
+	$(MAKE) build
 	docker tag $(REGISTRY)/kindnetd:riscv64 kindnetd:riscv64
 
 .PHONY: haproxy
 haproxy: $(BUILD_DIR)/kind
 	# Build the RISC-V HAProxy load-balancer image restored by the KinD patch.
 	cd $(BUILD_DIR)/kind/images/haproxy && \
-	PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) make build
+		PLATFORMS=riscv64 TAG=riscv64 REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/haproxy:riscv64 haproxy:riscv64
 
 distclean:
+	@if [ -d "$(BUILD_DIR)" ]; then chmod -R u+w "$(BUILD_DIR)"; fi
 	rm -rf $(BUILD_DIR)
-	docker rmi $(IMAGE)

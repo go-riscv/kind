@@ -1,34 +1,18 @@
 diff --git a/images/build/cross/default/Dockerfile b/images/build/cross/default/Dockerfile
-index fa1b807e..a5e19456 100644
 --- a/images/build/cross/default/Dockerfile
 +++ b/images/build/cross/default/Dockerfile
-@@ -31,2 +31,2 @@
+@@ -32,2 +32,2 @@
 -ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el s390x"
 -ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x darwin/amd64 windows/amd64 windows/386"
 +ARG KUBE_DYNAMIC_CROSSPLATFORMS="arm64 armhf i386 ppc64el riscv64 s390x"
 +ARG KUBE_CROSSPLATFORMS="linux/386 linux/arm linux/arm64 linux/ppc64le linux/riscv64 linux/s390x darwin/amd64 windows/amd64 windows/386"
-@@ -37,0 +38,3 @@
-+
-+# Copy precompiled artifacts that are awkward to fetch for riscv64.
-+COPY precompiled /precompiled
-@@ -79,34 +82,46 @@ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
-   && if [ ${targetArch} = "arm64" ]; then \
-     apt-get update \
-     && apt-get install -y build-essential gcc-x86-64-linux-gnu \
+@@ -82 +82 @@
 -    && apt-get install -y crossbuild-essential-ppc64el crossbuild-essential-s390x; \
 +    && apt-get install -y crossbuild-essential-ppc64el crossbuild-essential-riscv64 crossbuild-essential-s390x; \
- fi
-
- RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
+@@ -86 +86 @@
 -  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ]; then \
 +  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "riscv64" ] || [ ${targetArch} = "s390x" ]; then \
-     apt-get update \
-     && apt-get install -y build-essential; \
- fi
-
--ENV PROTOBUF_VERSION 23.4
-+ENV PROTOBUF_VERSION 34.1
- RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
+@@ -93,17 +93,23 @@
 -  && if [ ${targetArch} = "amd64" ]; then \
 -  ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-x86_64.zip"; \
 -elif [ ${targetArch} = "arm64" ]; then \
@@ -57,17 +41,11 @@ index fa1b807e..a5e19456 100644
 +      ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-aarch_64.zip"; \
 +    elif [ ${targetArch} = "ppc64le" ]; then \
 +      ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-ppcle_64.zip"; \
-+    elif [ ${targetArch} = "riscv64" ]; then \
-+      ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-riscv_64.zip"; \
 +    elif [ ${targetArch} = "s390x" ]; then \
 +      ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-s390_64.zip"; \
 +    fi \
 +    && mkdir /tmp/protoc && cd /tmp/protoc \
-+    && if [ -f "/precompiled/${ZIPNAME}" ]; then \
-+      cp "/precompiled/${ZIPNAME}" .; \
-+    else \
-+      wget "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_VERSION}/${ZIPNAME}"; \
-+    fi \
++    && wget "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_VERSION}/${ZIPNAME}" \
 +    && unzip "${ZIPNAME}" \
 +    && chmod -R +rX /tmp/protoc \
 +    && cp -pr bin /usr/local \
@@ -75,6 +53,3 @@ index fa1b807e..a5e19456 100644
 +    && rm -rf /tmp/protoc \
 +    && protoc --version; \
 +  fi
-
- # work around 64MB tmpfs size in Docker 1.6
- ENV TMPDIR /tmp.k8s

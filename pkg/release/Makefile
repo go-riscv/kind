@@ -1,7 +1,10 @@
+.DEFAULT_GOAL := all
+.NOTPARALLEL:
 include ../common.mk
 
 BRANCH=master
 SHA=0d55e3269177e9084168bfe19ebde15469252e52
+RELEASE_REPOSITORY ?= https://github.com/kubernetes/release.git
 
 all: release
 
@@ -17,7 +20,7 @@ $(BUILD_DIR)/release: folders
 			git init release; \
 		fi && \
 		cd release && \
-		(git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/kubernetes/release.git) && \
+		(git remote get-url origin >/dev/null 2>&1 || git remote add origin $(RELEASE_REPOSITORY)) && \
 		if git rev-parse --verify HEAD >/dev/null 2>&1; then \
 			git fetch origin $(BRANCH) && \
 			git reset --hard $(SHA); \
@@ -25,6 +28,7 @@ $(BUILD_DIR)/release: folders
 			git fetch origin $(BRANCH) && \
 			git checkout -f $(SHA); \
 		fi && \
+		git clean -ffd && \
 		for patch in $(PATCH_FOLDER)/*; do \
 			patch -N --no-backup-if-mismatch -p1 < $$patch || exit 1; \
 		done
@@ -34,10 +38,8 @@ $(BUILD_DIR)/release: folders
 cross: $(BUILD_DIR)/release
 	# Build cross
 	echo "Building release image: [cross]" && \
-	mkdir -p $(BUILD_DIR)/release/images/build/cross/precompiled && \
-	if [ -f $(BIN_DIR)/$(PROTOC_ZIP) ]; then cp $(BIN_DIR)/$(PROTOC_ZIP) $(BUILD_DIR)/release/images/build/cross/precompiled/; fi && \
 	cd $(BUILD_DIR)/release/images/build/cross && \
-	PLATFORMS=linux/riscv64 KUBERNETES_VERSION=v$(KUBERNETES_VERSION).0 GO_VERSION=$(GO_TOOLCHAIN_VERSION) GO_MAJOR_VERSION=1.26 OS_CODENAME=$(DEBIAN_SUITE) REGISTRY=$(REGISTRY) BUILDX_CACHE_ARGS="$(BUILDX_CONTAINER_CACHE_ARGS)" make container
+		PLATFORMS=linux/riscv64 KUBERNETES_VERSION=v$(KUBERNETES_VERSION) GO_VERSION=$(GO_TOOLCHAIN_VERSION) GO_MAJOR_VERSION=1.26 OS_CODENAME=$(DEBIAN_SUITE) REGISTRY=$(REGISTRY) BUILDX_CACHE_ARGS="$(BUILDX_CONTAINER_CACHE_ARGS)" $(MAKE) container
 	docker tag $(REGISTRY)/kube-cross-riscv64:$(KUBE_CROSS_VERSION) kube-cross-riscv64
 	docker tag $(REGISTRY)/kube-cross-riscv64:$(KUBE_CROSS_VERSION) kube-cross-riscv64:$(KUBE_CROSS_VERSION)
 
@@ -47,7 +49,7 @@ debian-base: $(BUILD_DIR)/release
 	# Build debian-base
 	echo "Building release image: [debian-base]" && \
 	cd $(BUILD_DIR)/release/images/build/debian-base && \
-	ARCH=riscv64 CONFIG=$(DEBIAN_SUITE) BASEIMAGE=debian:$(DEBIAN_SUITE)-slim IMAGE_VERSION=$(DEBIAN_BASE_VERSION) REGISTRY=$(REGISTRY) make build
+		ARCH=riscv64 CONFIG=$(DEBIAN_SUITE) BASEIMAGE=debian:$(DEBIAN_SUITE)-slim IMAGE_VERSION=$(DEBIAN_BASE_VERSION) REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/debian-base-riscv64:$(DEBIAN_BASE_VERSION) debian-base-riscv64:$(DEBIAN_BASE_VERSION)
 
 .PHONY: go-runner
@@ -55,26 +57,25 @@ go-runner: $(BUILD_DIR)/release
 	# Build go-runner
 	echo "Building release image: [go-runner]" && \
 	cd $(BUILD_DIR)/release/images/build/go-runner && \
-	PLATFORMS=linux/riscv64 GO_VERSION=$(GO_TOOLCHAIN_VERSION) GO_MAJOR_VERSION=1.26 OS_CODENAME=$(DEBIAN_SUITE) DISTROLESS_REGISTRY=$(DISTROLESS_REGISTRY) DISTROLESS_IMAGE=$(DISTROLESS_IMAGE) REGISTRY=$(REGISTRY) BUILDX_CACHE_ARGS="$(BUILDX_CONTAINER_CACHE_ARGS)" make container
+		PLATFORMS=linux/riscv64 GO_VERSION=$(GO_TOOLCHAIN_VERSION) GO_MAJOR_VERSION=1.26 OS_CODENAME=$(DEBIAN_SUITE) DISTROLESS_REGISTRY=$(DISTROLESS_REGISTRY) DISTROLESS_IMAGE=$(DISTROLESS_IMAGE) REGISTRY=$(REGISTRY) BUILDX_CACHE_ARGS="$(BUILDX_CONTAINER_CACHE_ARGS)" $(MAKE) container
 	docker tag $(REGISTRY)/go-runner-riscv64:$(KUBE_GORUNNER_VERSION) go-runner-riscv64:$(KUBE_GORUNNER_VERSION)
 
 .PHONY: setcap
-setcap: $(BUILD_DIR)/release
+setcap: $(BUILD_DIR)/release debian-base
 	docker buildx use default
 	echo "Building release image: [setcap]" && \
 	cd $(BUILD_DIR)/release/images/build/setcap && \
-	ARCH=riscv64 CONFIG=$(DEBIAN_SUITE) IMAGE_VERSION=$(KUBE_SETCAP_VERSION) DEBIAN_BASE_VERSION=$(DEBIAN_BASE_VERSION) BASE_REGISTRY=$(REGISTRY) REGISTRY=$(REGISTRY) BASEIMAGE=debian-base-riscv64:$(DEBIAN_BASE_VERSION) make build
+		ARCH=riscv64 CONFIG=$(DEBIAN_SUITE) IMAGE_VERSION=$(KUBE_SETCAP_VERSION) DEBIAN_BASE_VERSION=$(DEBIAN_BASE_VERSION) BASE_REGISTRY=$(REGISTRY) REGISTRY=$(REGISTRY) BASEIMAGE=debian-base-riscv64:$(DEBIAN_BASE_VERSION) $(MAKE) build
 	docker tag $(REGISTRY)/setcap-riscv64:$(KUBE_SETCAP_VERSION) setcap-riscv64:$(KUBE_SETCAP_VERSION)
 
 .PHONY: distroless-iptables
-distroless-iptables: $(BUILD_DIR)/release
+distroless-iptables: $(BUILD_DIR)/release go-runner
 	docker buildx use default
 	# Build distroless-iptables
 	echo "Building release image: [distroless-iptables]" && \
 	cd $(BUILD_DIR)/release/images/build/distroless-iptables && \
-	ARCH=riscv64 CONFIG=distroless-$(DEBIAN_SUITE) IMAGE_VERSION=$(KUBE_PROXY_BASE_VERSION) BASEIMAGE=$(DISTROLESS_IPTABLES_BASEIMAGE) GORUNNERIMAGE=go-runner-riscv64:$(KUBE_GORUNNER_VERSION) BASE_REGISTRY=$(REGISTRY) REGISTRY=$(REGISTRY) make build
+		ARCH=riscv64 CONFIG=distroless-$(DEBIAN_SUITE) IMAGE_VERSION=$(KUBE_PROXY_BASE_VERSION) BASEIMAGE=$(DISTROLESS_IPTABLES_BASEIMAGE) GORUNNERIMAGE=go-runner-riscv64:$(KUBE_GORUNNER_VERSION) BASE_REGISTRY=$(REGISTRY) REGISTRY=$(REGISTRY) $(MAKE) build
 	docker tag $(REGISTRY)/distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION) distroless-iptables-riscv64:$(KUBE_PROXY_BASE_VERSION)
 
 distclean:
 	rm -rf $(BUILD_DIR)
-	docker rmi $(IMAGE)

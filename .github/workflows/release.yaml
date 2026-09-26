@@ -21,7 +21,6 @@ jobs:
       RELEASE_TAG: ${{ github.ref_name }}
       KIND_BUILD_PROFILE: release
       GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      K9S_SOURCE_DIR: ${{ github.workspace }}/_deps/k9s
       BUILDX_CONTAINER_CACHE_ARGS: >-
         --cache-from type=gha,scope=release-images-riscv64
         --cache-to type=gha,scope=release-images-riscv64,mode=max
@@ -34,11 +33,6 @@ jobs:
           git fetch --depth=1 origin "${GITHUB_REF}"
           git checkout --force FETCH_HEAD
 
-      - name: Checkout k9s source
-        run: |
-          set -euo pipefail
-          git clone --depth=1 --branch v0.50.18 https://github.com/derailed/k9s.git _deps/k9s
-
       - name: Validate release tag
         run: |
           set -euo pipefail
@@ -46,7 +40,7 @@ jobs:
 
       - name: Restore Go build caches
         continue-on-error: true
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cache/go-build
@@ -63,11 +57,8 @@ jobs:
           make --version
           git --version
 
-      - name: Verify CI baseline optimization contract
-        run: make verify-ci-baseline-optimization
-
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -95,14 +86,13 @@ jobs:
         run: hack/release/verify-published-images.sh
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           generate_release_notes: true
           files: |
             dist/release/kind-linux-riscv64
             dist/release/kubectl-linux-riscv64
             dist/release/kubeadm-linux-riscv64
-            dist/release/k9s-linux-riscv64
             dist/release/kind-config-linux-riscv64.yaml
             dist/release/verify-kind-release-riscv64.sh
             dist/release/SHA256SUMS
@@ -111,7 +101,6 @@ jobs:
             - kind-linux-riscv64
             - kubectl-linux-riscv64
             - kubeadm-linux-riscv64
-            - k9s-linux-riscv64
             - kind-config-linux-riscv64.yaml
             - verify-kind-release-riscv64.sh
             - SHA256SUMS
@@ -140,7 +129,6 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ github.token }}
-      NODE_IMAGE: ghcr.io/go-riscv/node:${{ github.ref_name }}
     steps:
       - name: Download published release assets
         run: |
@@ -149,11 +137,12 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --pattern kind-linux-riscv64 \
             --pattern kubectl-linux-riscv64 \
+            --pattern kubeadm-linux-riscv64 \
             --pattern kind-config-linux-riscv64.yaml \
             --pattern verify-kind-release-riscv64.sh \
             --pattern SHA256SUMS
-          chmod 0755 kind-linux-riscv64 kubectl-linux-riscv64 verify-kind-release-riscv64.sh
-          sha256sum --ignore-missing -c SHA256SUMS
+          chmod 0755 kind-linux-riscv64 kubectl-linux-riscv64 kubeadm-linux-riscv64 verify-kind-release-riscv64.sh
+          sha256sum -c SHA256SUMS
 
       - name: Verify released default cluster without pre-tagged image cache
         run: |

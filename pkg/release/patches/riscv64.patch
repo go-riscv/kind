@@ -1,69 +1,45 @@
 diff --git a/hack/verify-build.sh b/hack/verify-build.sh
 --- a/hack/verify-build.sh
 +++ b/hack/verify-build.sh
-@@ -22,6 +22,7 @@
-     linux/amd64
-     linux/386
-     linux/arm
-     linux/arm64
+@@ -25,0 +26 @@
 +    linux/riscv64
-     linux/ppc64le
-     windows/amd64
 diff --git a/images/build/cross/Makefile b/images/build/cross/Makefile
 --- a/images/build/cross/Makefile
 +++ b/images/build/cross/Makefile
-@@ -53,8 +53,8 @@
- # TODO: Support multi-arch kube-cross images for linux/arm
- #       Currently some of the components references in the Dockerfile are
- #       not supported in specific architectures
+@@ -56 +56 @@
 -PLATFORMS ?= linux/amd64 linux/arm64 #linux/arm
 +PLATFORMS ?= linux/amd64 linux/arm64 linux/riscv64 #linux/arm
-
+@@ -58,2 +58,2 @@
 -KUBE_DYNAMIC_CROSSPLATFORMS ?= "arm64 armhf i386 ppc64el s390x"
 -KUBE_CROSSPLATFORMS ?= "linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x darwin/amd64 windows/amd64 windows/386"
 +KUBE_DYNAMIC_CROSSPLATFORMS ?= "arm64 armhf i386 ppc64el riscv64 s390x"
 +KUBE_CROSSPLATFORMS ?= "linux/386 linux/arm linux/arm64 linux/ppc64le linux/riscv64 linux/s390x darwin/amd64 windows/amd64 windows/386"
-
- # for legacy images only build linux/amd64
 diff --git a/images/build/debian-base/Makefile b/images/build/debian-base/Makefile
 --- a/images/build/debian-base/Makefile
 +++ b/images/build/debian-base/Makefile
-@@ -26,3 +26,3 @@
- ARCH ?= amd64
+@@ -27 +27 @@
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
-
-@@ -50,2 +50,6 @@
- endif
+@@ -49,0 +50,4 @@
++endif
 +ifeq ($(ARCH),riscv64)
 +	BASEIMAGE?=riscv64/debian:$(CONFIG)-slim
 +	QEMUARCH=riscv64
-+endif
- ifeq ($(ARCH),s390x)
 diff --git a/images/build/distroless-iptables/Makefile b/images/build/distroless-iptables/Makefile
 --- a/images/build/distroless-iptables/Makefile
 +++ b/images/build/distroless-iptables/Makefile
-@@ -26,3 +26,3 @@
- ARCH?=amd64
+@@ -27 +27 @@
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
-
 diff --git a/images/build/go-runner/Makefile b/images/build/go-runner/Makefile
 --- a/images/build/go-runner/Makefile
 +++ b/images/build/go-runner/Makefile
-@@ -34,5 +34,5 @@
- IMAGE_VERSION = $(APP_VERSION)-$(BUILD_METADATA)
-
+@@ -36 +36 @@
 -PLATFORMS ?= linux/amd64 linux/arm64 linux/arm linux/ppc64le linux/s390x
 +PLATFORMS ?= linux/amd64 linux/arm64 linux/arm linux/ppc64le linux/riscv64 linux/s390x
-
- HOST_GOOS ?= $(shell go env GOOS)
 diff --git a/images/build/setcap/Makefile b/images/build/setcap/Makefile
 --- a/images/build/setcap/Makefile
 +++ b/images/build/setcap/Makefile
-@@ -25,4 +25,4 @@
- ARCH?=amd64
+@@ -26 +26 @@
 -ALL_ARCH = amd64 arm arm64 ppc64le s390x
 +ALL_ARCH = amd64 arm arm64 ppc64le riscv64 s390x
-
- BASE_REGISTRY?=registry.k8s.io/build-image

@@ -1,3 +1,5 @@
 bin
 build
 pkg/*/build
+.omx-state-locks/
+.omx-state-locks.identity.json
